@@ -291,6 +291,115 @@ REGISTRY: list[AlgorithmSpec] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# External comparison planners — upstream implementations pinned and built by
+# `python third_party/setup_external.py` (see third_party/README.md).
+# ---------------------------------------------------------------------------
+
+def _descent_params(upwind: bool) -> list:
+    """Path-extraction knobs shared by the field-descent wrappers."""
+    return [
+        ParamSpec('step_size', 'Step size', 'float', 1.0, min=0.05, step=0.05,
+                  help='Gradient descent step size (cells).'),
+        ParamSpec('bilinear_interpolation', 'N-linear interpolation', 'bool', True,
+                  help='Sample the field continuously during gradient descent.'),
+        ParamSpec('upwind_gradient', 'Upwind gradient', 'bool', upwind,
+                  help='One-sided (downhill) difference per axis. Off: central '
+                       'difference with samples capped at the free-space Lipschitz '
+                       'bound of the field (keeps obstacle values out of the gradient).'),
+        ParamSpec('max_iters', 'Max iterations', 'int', 20000, min=100,
+                  help='Descent steps before giving up.'),
+        ParamSpec('stall_window', 'Stall window', 'int', 200, min=10,
+                  help='Steps without the field value decreasing before reporting '
+                       'a local minimum (unsolved).'),
+    ]
+
+
+REGISTRY += [
+    AlgorithmSpec(
+        id='fast_marching',
+        label='Fast Marching Method (thinks/fast-marching-method)',
+        dims=[2, 3, 4, 5, 6],
+        module_file=os.path.join('Algorithms', 'External Algorithms', 'fastmarching.py'),
+        class_name='FastMarchingAlgorithm',
+        params=[
+            ParamSpec('clearance_saturation', 'Clearance saturation (FM²)', 'float', 0.0,
+                      min=0.0, step=1.0,
+                      help='0 = plain FMM (unit speed: geodesic distance, shortest paths). '
+                           '> 0 = Fast Marching Square: speed = min(1, d / value) with d '
+                           'the distance to the nearest obstacle (cells).'),
+            ParamSpec('obstacle_speed', 'Obstacle speed', 'float', 1e-6, min=1e-12,
+                      help='Front speed inside obstacles (the solver needs speed > 0).'),
+            ParamSpec('high_accuracy', 'High-accuracy solver', 'bool', True,
+                      help='Second-order eikonal solver (upstream default).'),
+            *_descent_params(upwind=False),
+        ],
+    ),
+    AlgorithmSpec(
+        id='navigation_function',
+        label='Koditschek–Rimon Navigation Function (nfsim port)',
+        dims=None,   # any dimensionality
+        module_file=os.path.join('Algorithms', 'External Algorithms', 'navigationfunction.py'),
+        class_name='KoditschekRimonNF',
+        params=[
+            ParamSpec('k', 'k (0 = auto)', 'float', 0.0, min=0.0, step=1.0,
+                      help='KR tuning exponent; 0 uses #obstacles + 1. Larger k weakens '
+                           'obstacle repulsion (fewer spurious minima, paths nearer walls).'),
+            *_descent_params(upwind=True),
+        ],
+    ),
+    AlgorithmSpec(
+        id='harmonic_map',
+        label='Harmonic Map Navigation (hntf2d)',
+        dims=[2],
+        module_file=os.path.join('Algorithms', 'External Algorithms', 'harmonicmap2d.py'),
+        class_name='HarmonicMapNavigation2D',
+        params=[
+            ParamSpec('panel_length', 'Panel length', 'float', 1.0, min=0.1, step=0.1,
+                      help='Max boundary panel length (cells) for the panel-method map. '
+                           'Smaller = more accurate map, cubic cost in the panel count.'),
+            ParamSpec('step_size', 'Step size', 'float', 1.0, min=0.05, step=0.05,
+                      help='Max travel per integration step (cells).'),
+            ParamSpec('k_d', 'Goal strength k_d', 'float', 20.0, min=0.1, step=1.0,
+                      help='Initial goal source strength (paper §6.1: 20).'),
+            ParamSpec('k_i', 'Obstacle strength k_i', 'float', 1.0, min=0.0, step=0.1,
+                      help='Initial obstacle source strength (paper: 1).'),
+            ParamSpec('k_bar', 'Obstacle strength bound k̄_i', 'float', 20.0, min=0.0, step=1.0,
+                      help='Upper bound of the adaptive obstacle strengths (paper: 20).'),
+            ParamSpec('w_phi', 'Potential scale w_φ', 'float', 20.0, min=0.1, step=1.0,
+                      help='tanh scaling of the harmonic potential (paper: 20).'),
+            ParamSpec('K_k', 'Adaptation gain K_k', 'float', 100.0, min=0.0, step=10.0,
+                      help='Decay gain of the obstacle strengths near the outer boundary.'),
+            ParamSpec('max_iters', 'Max iterations', 'int', 20000, min=100,
+                      help='Integration steps before giving up.'),
+        ],
+    ),
+    AlgorithmSpec(
+        id='custom_fields',
+        label='Custom Harmonic Fields (cust_fields)',
+        dims=[2],
+        module_file=os.path.join('Algorithms', 'External Algorithms', 'customfields.py'),
+        class_name='CustomHarmonicFields2D',
+        params=[
+            ParamSpec('world_size', 'World size', 'float', 5.0, min=0.5, step=0.5,
+                      help='Map is scaled so its longer side spans this many world units '
+                           '(upstream constants are tuned for ~5).'),
+            ParamSpec('nf_lambda', 'Star→sphere λ', 'float', 1e5, min=1.0,
+                      help='Switch parameter of the star-to-sphere map (upstream demo: 1e5). '
+                           'Map-dependent — worth sweeping.'),
+            ParamSpec('squircle_s', 'Squircle s', 'float', 0.99, min=0.5, max=0.9999, step=0.01,
+                      help='Squareness of the rectangle obstacles (upstream demo: 0.99).'),
+            ParamSpec('step_size', 'Step size', 'float', 1.0, min=0.05, step=0.05,
+                      help='Integration step (cells), slowed near the goal by upstream.'),
+            ParamSpec('clearance', 'Clearance', 'float', 0.0, min=0.0, step=0.5,
+                      help='Extra free-space margin enforced while integrating (cells).'),
+            ParamSpec('max_iters', 'Max iterations', 'int', 3000, min=100,
+                      help='Integration steps before giving up.'),
+        ],
+    ),
+]
+
+
 def get_spec(algo_id: str) -> AlgorithmSpec:
     for spec in REGISTRY:
         if spec.id == algo_id:
