@@ -57,6 +57,25 @@ app's watchdog subprocess, and report why a map was not solved: either
 | `harmonic_map` | the C++ `HarmonicMap2D` (panel-method map, `map`, `jacob`, `puncts`) and upstream's `poly2circle` | the controller (paper eqs. 6–16) — it is not in the upstream repo. |
 | `custom_fields` | `NF.geometry.World`, `ForestToStar`, `StarToSphere`, `SphereToPoint`, `TOPO.integrate_forest` (upstream defaults) | grid → forest-world conversion, and the 3-line map composition from upstream's `test_cust_nf.PointMap` (that script imports matplotlib at module level). |
 
+### MATLAB → Python conversion (nfsim)
+
+nfsim is MATLAB-only, so the Koditschek–Rimon navigation function is a
+Python translation, not a call into nfsim. What was translated
+(nfsim @ `21bf45d`):
+
+| nfsim (MATLAB) | Python (`navigationfunction.py`, `_krf`) |
+|---|---|
+| [`krf.m` L44](https://github.com/johnyf/nfsim/blob/21bf45daf78823bdf56dcf03ac91f65647585181/navigation_function/krnf/field/krf.m#L44): `b(b < 0) = 0` | `phi[~free] = 1.0` (obstacle cells, where b = 0) |
+| [`krf.m` L48–49](https://github.com/johnyf/nfsim/blob/21bf45daf78823bdf56dcf03ac91f65647585181/navigation_function/krnf/field/krf.m#L48-L49): `nf = gd ./ (gd.^k + b).^(1/k)` | same formula, evaluated as `exp(log gd − logaddexp(k·log gd, log b)/k)` so `gd^k` cannot overflow |
+| [`bi2b.m` L24](https://github.com/johnyf/nfsim/blob/21bf45daf78823bdf56dcf03ac91f65647585181/navigation_function/krnf/obstacles/bi2b.m#L24): `b = prod(bi, 1)` | `log b = Σ log beta_i` |
+| `beta_*.m` implicit obstacle functions (spheres, ellipsoids, …) | distance to each obstacle component of the grid (a grid has no analytic shapes) |
+| [`init_sphere_world.m` L55](https://github.com/johnyf/nfsim/blob/21bf45daf78823bdf56dcf03ac91f65647585181/core_engine/init/init_sphere_world.m#L55): demo world radius `r0 = 5` | map scaled so its longer side is 10 units |
+
+Not translated: `krf.m`'s `k ≥ 100` branch (returns ≈1 to dodge overflow;
+the log-space evaluation does not need it), `grad_krf.m` (the path uses the
+repo's standard finite-difference descent on φ, like the other field
+planners), and nfsim's k-tuning/integration GUI code.
+
 ### Choices needed to run on grid maps
 
 - **Geometry.** Cell (x, y) is the unit square around (x, y). The continuous
@@ -112,18 +131,29 @@ app's watchdog subprocess, and report why a map was not solved: either
   input: a repeated vertex (zero-length segment) silently yields NaNs.
 - **hntf2d computes in single precision** (`Eigen::MatrixXf`), so the map and
   Jacobian lose accuracy within about a panel of the boundary.
-- **cust_fields `ForestToStar.compute_virtual_ws`** calls
-  `Rectangular(_type, center, w, h)` without the required `theta` and `s`
-  arguments, so any obstacle tree attached to the workspace boundary raises
-  `TypeError`.
-- **cust_fields purges each obstacle tree as a parent→child chain**
-  (`obs[depth]` into `obs[depth-1]`), but its own `example_world.yaml` has a
-  three-star tree whose second and third stars do not overlap.
-- **cust_fields `SphereToPoint.compute_T_q`** starts with `T = q` and then
-  `T += …`, mutating its input array in place, so later obstacles in the
-  loop see the modified point.
-- **cust_fields uses two different squircle formulas** for the same obstacle:
-  `Rectangular.potential` (the transformation; mixes length² and length⁴
-  terms, so its shape depends on the world's scale) and `check_point_inside`
-  (the integrator's collision check). `NF/utils.py`'s ray length divides by
-  |q − centre| and emits 0/0 warnings.
+- **cust_fields `compute_virtual_ws`** —
+  [`NF/transformation.py` L106](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L106) calls
+  `Rectangular(_type, center, width - 0.16, height + 0.16)`, but
+  [`Rectangular.__init__`](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/geometry.py#L147) requires `theta` and `s`.
+  It is reached from [L295](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L295) /
+  [L336](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L336) for any obstacle tree attached to the
+  workspace boundary, which therefore always raises `TypeError` (reproduced).
+- **cust_fields purges each obstacle tree as a parent→child chain** —
+  [L116](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L116) takes the leaf as `obs[depth]` and
+  [L236](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L236) its parent as `obs[depth - 1]` — but
+  its own [`CONFIG/example_world.yaml` L2–26](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/CONFIG/example_world.yaml#L2-L26)
+  has a three-star tree whose 2nd star (x 2.45–2.75) and 3rd star
+  (x 0.85–1.15) do not overlap.
+- **cust_fields `SphereToPoint.compute_T_q`** —
+  [L461–463](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L461-L463): `T = q` then `T += …`
+  mutates its input array in place, so each later obstacle in the loop is
+  evaluated at the already-shifted point (reproduced next to an obstacle:
+  input `[3.054, 3.0]` became `[3.022, 3.0]`). Only matters within the
+  0.01 smoothing band around each obstacle's sphere image.
+- **cust_fields uses two different squircle formulas** for one obstacle:
+  [`Rectangular.potential` L182–191](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/geometry.py#L182-L191) (used by
+  the transformation; mixes length² and length⁴ terms, so its shape depends
+  on the world's scale) and
+  [`check_point_inside` L232–245](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/geometry.py#L232-L245) (the
+  integrator's collision check). [`NF/utils.py` L29](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/utils.py#L29)
+  divides by |q − centre| and emits 0/0 warnings at a star's centre.
