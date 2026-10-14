@@ -11,13 +11,16 @@ Upstream sources are checked out at pinned commits into ``third_party/src/``
 and the compiled extension modules land in ``third_party/build/``. Both
 directories are git-ignored: the native modules are platform-specific (a macOS
 arm64 build will not load on a Linux VM), so every machine builds its own from
-the same pinned sources. The upstream code itself is not modified — only the
-pybind11 bindings in ``third_party/bindings/`` are ours.
+the same pinned sources. Only the pybind11 bindings in ``third_party/bindings/``
+are ours; upstream code is used as checked out, except for the bug fixes in
+``third_party/patches/<name>.patch``, applied right after checkout (see
+third_party/README.md).
 
 Requirements: git, a C++17 compiler, and ``pip install pybind11 pyyaml``.
 """
 
 import argparse
+import hashlib
 import importlib.machinery
 import os
 import shutil
@@ -29,6 +32,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(HERE, 'src')
 BUILD_DIR = os.path.join(HERE, 'build')
 BINDINGS_DIR = os.path.join(HERE, 'bindings')
+PATCHES_DIR = os.path.join(HERE, 'patches')
 
 # name -> (git url, ref to fetch, expected commit, license)
 SOURCES = {
@@ -72,9 +76,13 @@ def fetch(name: str, force: bool = False) -> str:
     if os.path.isdir(dest) and not force:
         head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=dest,
                               capture_output=True, text=True).stdout.strip()
-        if head == commit:
+        if head == commit and is_patched(name):
             return dest
-        print(f'  {name}: checkout is at {head[:10] or "?"}, expected {commit[:10]} — re-fetching')
+        if head == commit and not os.path.isfile(_patch_marker(name)):
+            _apply_patch(name, dest)   # pinned and untouched: just patch it
+            return dest
+        print(f'  {name}: checkout is at {head[:10] or "?"} (pinned {commit[:10]}) or carries '
+              'an outdated patch — re-fetching')
     shutil.rmtree(dest, ignore_errors=True)
     os.makedirs(dest)
     print(f'  fetching {name} @ {ref}')
@@ -92,7 +100,44 @@ def fetch(name: str, force: bool = False) -> str:
             if d == '__pycache__':
                 shutil.rmtree(os.path.join(root, d))
                 dirs.remove(d)
+    _apply_patch(name, dest)
     return dest
+
+
+def _patch_file(name: str):
+    path = os.path.join(PATCHES_DIR, f'{name}.patch')
+    return path if os.path.isfile(path) else None
+
+
+def _patch_marker(name: str) -> str:
+    return os.path.join(SRC_DIR, name, '.applied-patch')
+
+
+def _patch_digest(path: str) -> str:
+    with open(path, 'rb') as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def is_patched(name: str) -> bool:
+    """The checkout carries the current patch (or none is needed)."""
+    patch = _patch_file(name)
+    if patch is None:
+        return True
+    try:
+        with open(_patch_marker(name)) as f:
+            return f.read().strip() == _patch_digest(patch)
+    except OSError:
+        return False
+
+
+def _apply_patch(name: str, dest: str):
+    patch = _patch_file(name)
+    if patch is None:
+        return
+    print(f'  applying patches/{name}.patch')
+    _git('apply', '--whitespace=nowarn', patch, cwd=dest)
+    with open(_patch_marker(name), 'w') as f:
+        f.write(_patch_digest(patch) + '\n')
 
 
 def _build_extension(ext):
@@ -173,7 +218,8 @@ def is_ready(component: str) -> bool:
     if module and not any(os.path.isfile(os.path.join(BUILD_DIR, module + suffix))
                           for suffix in importlib.machinery.EXTENSION_SUFFIXES):
         return False
-    return all(os.path.isfile(os.path.join(SRC_DIR, *f)) for f in files)
+    return (all(os.path.isfile(os.path.join(SRC_DIR, *f)) for f in files)
+            and all(is_patched(name) for name in COMPONENTS[component]))
 
 
 def check() -> dict:

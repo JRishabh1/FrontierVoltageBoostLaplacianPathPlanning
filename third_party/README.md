@@ -22,8 +22,9 @@ Unsolved maps report why (e.g. `no path: local minimum near (41.0, 17.3)` or
 `third_party/src/` and compiles the native parts into `third_party/build/`.
 Both directories are git-ignored: compiled modules are platform-specific (a
 macOS arm64 build will not load on a Linux VM), so each machine builds its
-own from the same pinned sources. Upstream code is compiled **unmodified** —
-only the small pybind11 bindings in `bindings/` are ours. Needs git and a
+own from the same pinned sources. Upstream code is used as checked out —
+only the small pybind11 bindings in `bindings/` are ours — except for the
+cust_fields bug fixes in `patches/` (see the end of this file). Needs git and a
 C++17 compiler; no system libraries (Eigen and tinyxml2 are fetched too).
 
 | Component | Upstream (pinned) | License | How it runs |
@@ -33,9 +34,10 @@ C++17 compiler; no system libraries (Eigen and tinyxml2 are fetched too).
 | `cust_fields` | [Shuaikang-Wang/cust_fields](https://github.com/Shuaikang-Wang/cust_fields) @ `5ca178e` | none stated | Pure Python, imported directly (`NF/`, `TOPO/`) |
 | — | [johnyf/nfsim](https://github.com/johnyf/nfsim) @ `21bf45d` | BSD-2 | MATLAB — not fetched; the KR navigation function is ported (see below) |
 
-**Licensing note.** Nothing from hntf2d (GPL-3.0) or cust_fields (no license
-file, so all rights reserved by default) is committed to this repository —
-they are fetched on the user's machine at build time. Keep it that way unless
+**Licensing note.** hntf2d (GPL-3.0) and cust_fields (no license file, so
+all rights reserved by default) are fetched on the user's machine at build
+time, not committed — except that `patches/cust_fields.patch` necessarily
+quotes a few lines of cust_fields as diff context. Keep it that way unless
 the repo's own license is chosen with that in mind.
 
 ## The four wrappers
@@ -43,8 +45,9 @@ the repo's own license is chosen with that in mind.
 Principle: **run each algorithm as published.** The wrappers call the upstream
 code directly wherever it exists and add only what is unavoidable to run it
 on our occupancy-grid maps (listed below). Nothing is tuned to make a
-baseline succeed more often; problems found upstream are listed at the end
-rather than patched.
+baseline succeed more often. Clear upstream bugs are fixed by a small patch
+applied at checkout (`patches/`, listed at the end); everything else found
+upstream is only reported.
 
 All return continuous `(x, y, ...)` paths like the other planners, run in the
 app's watchdog subprocess, and report why a map was not solved: either
@@ -123,7 +126,36 @@ planners), and nfsim's k-tuning/integration GUI code.
   map-dependent (upstream tunes it per example); most default-generator maps
   are rejected.
 
-### Problems found upstream (not patched)
+### Upstream bugs fixed by `patches/cust_fields.patch`
+
+`setup_external.py` applies the patch right after checking out cust_fields
+@ `5ca178e` (and re-fetches older checkouts that lack it). The patch changes
+10 lines; none of the fixes changed success rates on our map sets — the
+crash path is not reached (the wrapper rejects border obstacles) and the
+other two only act within 0.01 of an obstacle.
+
+1. **`compute_virtual_ws` crashes** —
+   [`NF/transformation.py` L106](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L106) called
+   `Rectangular(_type, center, width - 0.16, height + 0.16)`, but
+   [`Rectangular.__init__`](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/geometry.py#L147) requires `theta` and
+   `s`. Reached from [L295](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L295) /
+   [L336](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L336) for any obstacle tree attached to
+   the workspace boundary, it always raised `TypeError`. **Fix:** pass
+   `theta = 0.0, s = 0.99`, matching upstream's other virtual shapes
+   (`compute_virtual_length_ray` hard-codes the same values).
+2. **`SphereToPoint.compute_T_q` mutates its input** —
+   [L461–463](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L461-L463): `T = q` then `T += …`
+   changed `q` in place, so each later obstacle in the loop was evaluated
+   at the already-shifted point (reproduced: `[3.054, 3.0]` became
+   `[3.022, 3.0]` next to an obstacle). **Fix:** `T = np.array(q, dtype=float)`.
+3. **0/0 at a star's centre** —
+   [`NF/utils.py` L29](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/utils.py#L29) and
+   [L40](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/utils.py#L40) divided by |q − centre|, giving NaN (and
+   RuntimeWarnings) at the centre. **Fix:** return 0 there; every caller
+   multiplies the ray length by q − centre = 0, so the result is the centre
+   either way. Verified: no floating-point errors with `np.seterr(all='raise')`.
+
+### Other problems found upstream (reported, not changed)
 
 - **hntf2d README example** builds its "inner box" from `linspace(-1, 1)`
   instead of `linspace(-0.1, 0.1)`, so the example boundary self-intersects
@@ -131,29 +163,19 @@ planners), and nfsim's k-tuning/integration GUI code.
   input: a repeated vertex (zero-length segment) silently yields NaNs.
 - **hntf2d computes in single precision** (`Eigen::MatrixXf`), so the map and
   Jacobian lose accuracy within about a panel of the boundary.
-- **cust_fields `compute_virtual_ws`** —
-  [`NF/transformation.py` L106](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L106) calls
-  `Rectangular(_type, center, width - 0.16, height + 0.16)`, but
-  [`Rectangular.__init__`](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/geometry.py#L147) requires `theta` and `s`.
-  It is reached from [L295](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L295) /
-  [L336](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L336) for any obstacle tree attached to the
-  workspace boundary, which therefore always raises `TypeError` (reproduced).
 - **cust_fields purges each obstacle tree as a parent→child chain** —
   [L116](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L116) takes the leaf as `obs[depth]` and
   [L236](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L236) its parent as `obs[depth - 1]` — but
   its own [`CONFIG/example_world.yaml` L2–26](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/CONFIG/example_world.yaml#L2-L26)
   has a three-star tree whose 2nd star (x 2.45–2.75) and 3rd star
-  (x 0.85–1.15) do not overlap.
-- **cust_fields `SphereToPoint.compute_T_q`** —
-  [L461–463](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/transformation.py#L461-L463): `T = q` then `T += …`
-  mutates its input array in place, so each later obstacle in the loop is
-  evaluated at the already-shifted point (reproduced next to an obstacle:
-  input `[3.054, 3.0]` became `[3.022, 3.0]`). Only matters within the
-  0.01 smoothing band around each obstacle's sphere image.
+  (x 0.85–1.15) do not overlap. (Example data; not used here.)
 - **cust_fields uses two different squircle formulas** for one obstacle:
   [`Rectangular.potential` L182–191](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/geometry.py#L182-L191) (used by
   the transformation; mixes length² and length⁴ terms, so its shape depends
   on the world's scale) and
   [`check_point_inside` L232–245](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/geometry.py#L232-L245) (the
-  integrator's collision check). [`NF/utils.py` L29](https://github.com/Shuaikang-Wang/cust_fields/blob/5ca178e588b4b766cbc537af4a2c4e8ebb53895a/NF/utils.py#L29)
-  divides by |q − centre| and emits 0/0 warnings at a star's centre.
+  integrator's collision check). A design choice rather than a clear bug —
+  changing it would mean guessing which shape was intended.
+- **cust_fields supports one wall-attached obstacle chain per world**:
+  `StarToSphere.compute_all_root_obs` treats the first entry of every further
+  workspace tree as an ordinary obstacle root.

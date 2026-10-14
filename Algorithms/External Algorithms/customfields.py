@@ -55,11 +55,13 @@ class CustomHarmonicFields2D(Algorithm2D):
     ``Rectangular`` squircles (``squircle_s``) with the method's own +0.1
     padding. The workspace squircle is sized to the map exactly (its padding
     is cancelled so paths cannot leave the grid). Maps outside this class —
-    obstacles touching the border (upstream's workspace-attached trees are not
-    usable: ``compute_virtual_ws`` constructs ``Rectangular`` with missing
-    arguments), branching or cyclic obstacle unions, trees deeper than
-    5, padded obstacles overlapping each other, or start/goal inside the
-    padding — raise ``UnsupportedMapError``.
+    obstacles touching the border (upstream supports a single wall-attached
+    chain per world — a second workspace tree's root would be read as an
+    obstacle — so the wrapper does not build them), branching or cyclic
+    obstacle unions, trees deeper than 5, padded obstacles overlapping each
+    other, or start/goal inside the padding — raise ``UnsupportedMapError``.
+
+    Upstream bug fixes applied at checkout: ``third_party/patches/cust_fields.patch``.
     """
 
     def __init__(self, map, world_size: float = 5.0, nf_lambda: float = 1e5,
@@ -117,11 +119,8 @@ class CustomHarmonicFields2D(Algorithm2D):
         weights = np.array([max(6.0, n_obs + 1.1)] + [1.0] * n_obs)   # upstream projected init
         # upstream integrator defaults (dt 0.03, goal_tol 0.05, safe 0.05 world units)
         cfg = TOPO.IntegrConfig(max_steps=self.max_iters)
-        # upstream's squircle ray length (NF/utils.py) divides by |q − centre|,
-        # which emits 0/0 RuntimeWarnings for some evaluations; keep logs quiet
-        with np.errstate(divide='ignore', invalid='ignore'):
-            fpath, reached = TOPO.integrate_forest(self.world, pmap, roots, weights,
-                                                   start_w, goal_w, cfg)
+        fpath, reached = TOPO.integrate_forest(self.world, pmap, roots, weights,
+                                               start_w, goal_w, cfg)
         last = fpath[-1] / scale - 0.5
         if not reached:
             self._path = None
