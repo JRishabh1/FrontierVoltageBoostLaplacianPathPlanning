@@ -72,31 +72,10 @@ def in_free_cell(grid: np.ndarray, pos) -> bool:
     return grid[tuple(idx)] == 0
 
 
-def free_lipschitz(field: np.ndarray, grid: np.ndarray, exclude=None) -> float:
-    """Largest field change between face-adjacent free cells.
-
-    ``exclude`` is a grid index left out (e.g. a singular goal cell).
-    """
-    free = grid == 0
-    if exclude is not None:
-        free = free.copy()
-        free[exclude] = False
-    rise = 0.0
-    for d in range(field.ndim):
-        a = [slice(None)] * field.ndim
-        b = [slice(None)] * field.ndim
-        a[d], b[d] = slice(1, None), slice(None, -1)
-        both = free[tuple(a)] & free[tuple(b)]
-        if both.any():
-            diff = np.abs(field[tuple(a)] - field[tuple(b)])[both]
-            rise = max(rise, float(diff.max()))
-    return rise
-
-
 def descend_field(field: np.ndarray, grid: np.ndarray, start: tuple, end: tuple,
                   step_size: float = 1.0, max_iters: int = 10000,
                   stall_window: int = 200, interpolate: bool = True,
-                  max_rise: float = None):
+                  diag: dict = None):
     """Normalised steepest descent of ``field`` from ``start`` to ``end``.
 
     Mirrors the repo's potential-field planners: each step moves
@@ -109,16 +88,17 @@ def descend_field(field: np.ndarray, grid: np.ndarray, start: tuple, end: tuple,
     judged on the field value rather than distance to the goal, so long
     detours around obstacles are not mistaken for stalls.
 
-    ``max_rise`` caps each ±1-cell sample at ``field(pos) + max_rise`` — the
-    largest change the field can show between neighbouring free cells. Larger
-    samples can only come from obstacle cells, and without the cap a corridor
-    one or two cells wide is dominated by its walls on both sides. This plays
-    the role of Frontier Voltage Boost's neighbour cap (``_fv``). With
-    ``max_rise = 0`` every uphill sample is clamped to ``field(pos)``, i.e. the
-    one-sided (upwind) gradient built from each axis' downhill neighbour.
-
-    Returns raw continuous positions in user (x, y, ...) order.
+    Returns raw continuous positions in user (x, y, ...) order. On failure
+    the reason is stored in ``diag['reason']`` when a dict is passed.
     """
+    def fail(reason):
+        if diag is not None:
+            diag['reason'] = reason
+        return None
+
+    def at(p):
+        return '(' + ', '.join(f'{c:.1f}' for c in p[::-1]) + ')'
+
     ndim = field.ndim
     end_g = np.array([float(c) for c in reversed(end)])
     pos = np.array([float(c) for c in reversed(start)])
@@ -140,12 +120,10 @@ def descend_field(field: np.ndarray, grid: np.ndarray, start: tuple, end: tuple,
         else:
             idx = np.clip(np.floor(pts + 0.5).astype(int), 0, upper)
             vals = field[tuple(idx.T)]
-        if max_rise is not None:
-            vals[1:] = np.minimum(vals[1:], vals[0] + max_rise)
         grad = vals[1::2] - vals[2::2]
         mag = float(np.sqrt(grad @ grad))
         if not math.isfinite(mag) or mag == 0.0:
-            return None
+            return fail(f'zero gradient at {at(pos)}')
 
         value = float(vals[0])
         if not math.isfinite(best) or value < best - 1e-12 * (1.0 + abs(best)):
@@ -154,17 +132,18 @@ def descend_field(field: np.ndarray, grid: np.ndarray, start: tuple, end: tuple,
         else:
             since_best += 1
             if since_best >= stall_window:
-                return None
+                return fail(f'local minimum near {at(pos)} (field stopped decreasing '
+                            f'for {stall_window} steps)')
 
         pos = pos - (step_size / mag) * grad
         if not in_free_cell(grid, pos):
-            return None
+            return fail(f'descent left free space at {at(pos)}')
         path.append(tuple(float(c) for c in pos[::-1]))
 
         if np.all(np.abs(end_g - pos) <= 1.0):
             path.append(tuple(float(c) for c in end))
             return path
-    return None
+    return fail(f'goal not reached within {max_iters} steps')
 
 
 def path_is_free(grid: np.ndarray, path) -> bool:

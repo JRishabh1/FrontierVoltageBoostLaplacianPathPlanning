@@ -78,6 +78,7 @@ class AlgorithmSpec:
     module_file: str      # path relative to project root
     class_name: str
     params: list = field(default_factory=list)   # list[ParamSpec]
+    external: "str | None" = None   # third_party/setup_external.py component it needs
 
     def supports_dims(self, n: int) -> bool:
         return self.dims is None or n in self.dims
@@ -296,17 +297,13 @@ REGISTRY: list[AlgorithmSpec] = [
 # `python third_party/setup_external.py` (see third_party/README.md).
 # ---------------------------------------------------------------------------
 
-def _descent_params(upwind: bool) -> list:
+def _descent_params() -> list:
     """Path-extraction knobs shared by the field-descent wrappers."""
     return [
         ParamSpec('step_size', 'Step size', 'float', 1.0, min=0.05, step=0.05,
                   help='Gradient descent step size (cells).'),
         ParamSpec('bilinear_interpolation', 'N-linear interpolation', 'bool', True,
                   help='Sample the field continuously during gradient descent.'),
-        ParamSpec('upwind_gradient', 'Upwind gradient', 'bool', upwind,
-                  help='One-sided (downhill) difference per axis. Off: central '
-                       'difference with samples capped at the free-space Lipschitz '
-                       'bound of the field (keeps obstacle values out of the gradient).'),
         ParamSpec('max_iters', 'Max iterations', 'int', 20000, min=100,
                   help='Descent steps before giving up.'),
         ParamSpec('stall_window', 'Stall window', 'int', 200, min=10,
@@ -322,6 +319,7 @@ REGISTRY += [
         dims=[2, 3, 4, 5, 6],
         module_file=os.path.join('Algorithms', 'External Algorithms', 'fastmarching.py'),
         class_name='FastMarchingAlgorithm',
+        external='fmm',
         params=[
             ParamSpec('clearance_saturation', 'Clearance saturation (FM²)', 'float', 0.0,
                       min=0.0, step=1.0,
@@ -332,7 +330,7 @@ REGISTRY += [
                       help='Front speed inside obstacles (the solver needs speed > 0).'),
             ParamSpec('high_accuracy', 'High-accuracy solver', 'bool', True,
                       help='Second-order eikonal solver (upstream default).'),
-            *_descent_params(upwind=False),
+            *_descent_params(),
         ],
     ),
     AlgorithmSpec(
@@ -345,7 +343,7 @@ REGISTRY += [
             ParamSpec('k', 'k (0 = auto)', 'float', 0.0, min=0.0, step=1.0,
                       help='KR tuning exponent; 0 uses #obstacles + 1. Larger k weakens '
                            'obstacle repulsion (fewer spurious minima, paths nearer walls).'),
-            *_descent_params(upwind=True),
+            *_descent_params(),
         ],
     ),
     AlgorithmSpec(
@@ -354,12 +352,14 @@ REGISTRY += [
         dims=[2],
         module_file=os.path.join('Algorithms', 'External Algorithms', 'harmonicmap2d.py'),
         class_name='HarmonicMapNavigation2D',
+        external='hntf2d',
         params=[
             ParamSpec('panel_length', 'Panel length', 'float', 1.0, min=0.1, step=0.1,
                       help='Max boundary panel length (cells) for the panel-method map. '
                            'Smaller = more accurate map, cubic cost in the panel count.'),
-            ParamSpec('step_size', 'Step size', 'float', 1.0, min=0.05, step=0.05,
-                      help='Max travel per integration step (cells).'),
+            ParamSpec('step_size', 'Max step (cells)', 'float', 1.0, min=0.05, step=0.05,
+                      help='The paper integrates with 10 ms Euler steps; a step that '
+                           'would travel further than this is taken as a shorter Euler step.'),
             ParamSpec('k_d', 'Goal strength k_d', 'float', 20.0, min=0.1, step=1.0,
                       help='Initial goal source strength (paper §6.1: 20).'),
             ParamSpec('k_i', 'Obstacle strength k_i', 'float', 1.0, min=0.0, step=0.1,
@@ -380,6 +380,7 @@ REGISTRY += [
         dims=[2],
         module_file=os.path.join('Algorithms', 'External Algorithms', 'customfields.py'),
         class_name='CustomHarmonicFields2D',
+        external='cust_fields',
         params=[
             ParamSpec('world_size', 'World size', 'float', 5.0, min=0.5, step=0.5,
                       help='Map is scaled so its longer side spans this many world units '
@@ -389,12 +390,8 @@ REGISTRY += [
                            'Map-dependent — worth sweeping.'),
             ParamSpec('squircle_s', 'Squircle s', 'float', 0.99, min=0.5, max=0.9999, step=0.01,
                       help='Squareness of the rectangle obstacles (upstream demo: 0.99).'),
-            ParamSpec('step_size', 'Step size', 'float', 1.0, min=0.05, step=0.05,
-                      help='Integration step (cells), slowed near the goal by upstream.'),
-            ParamSpec('clearance', 'Clearance', 'float', 0.0, min=0.0, step=0.5,
-                      help='Extra free-space margin enforced while integrating (cells).'),
             ParamSpec('max_iters', 'Max iterations', 'int', 3000, min=100,
-                      help='Integration steps before giving up.'),
+                      help='Upstream integrator step limit (its default: 3000).'),
         ],
     ),
 ]

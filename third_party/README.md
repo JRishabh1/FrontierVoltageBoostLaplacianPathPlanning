@@ -11,6 +11,13 @@ python third_party/setup_external.py            # fetch pinned sources + build (
 python third_party/setup_external.py --selftest # solve a small map with every planner
 ```
 
+The benchmark app runs the setup automatically before the first run that
+uses an external planner (and again if the app's Python version changes,
+since compiled modules are per-interpreter). If it cannot build — no git, no
+C++ compiler, or pybind11/pyyaml missing — the run stops with the reason.
+Unsolved maps report why (e.g. `no path: local minimum near (41.0, 17.3)` or
+`unsupported map: 2 obstacle(s) touch the map border …`).
+
 `setup_external.py` checks each upstream repo out at a **pinned commit** into
 `third_party/src/` and compiles the native parts into `third_party/build/`.
 Both directories are git-ignored: compiled modules are platform-specific (a
@@ -33,55 +40,90 @@ the repo's own license is chosen with that in mind.
 
 ## The four wrappers
 
+Principle: **run each algorithm as published.** The wrappers call the upstream
+code directly wherever it exists and add only what is unavoidable to run it
+on our occupancy-grid maps (listed below). Nothing is tuned to make a
+baseline succeed more often; problems found upstream are listed at the end
+rather than patched.
+
 All return continuous `(x, y, ...)` paths like the other planners, run in the
-app's watchdog subprocess, and report maps outside their world class as
-unsolved with the reason (`UnsupportedMapError`) rather than crashing.
+app's watchdog subprocess, and report why a map was not solved: either
+`unsupported map: …` (outside the method's world class) or `no path: …`.
 
-| Registry id | Class | Dims | Field / method | Path extraction |
-|---|---|---|---|---|
-| `fast_marching` | `FastMarchingAlgorithm` | 2–6 | Arrival time T from the goal; speed 1 (plain FMM) or min(1, d/sat) (Fast Marching Square) | Shared N-linear descent on T |
-| `navigation_function` | `KoditschekRimonNF` | any | KR NF φ = γ/(γᵏ+β)^(1/k) with β = Π (distance to obstacle i) | Shared descent on log(γᵏ/β) (monotone in φ) |
-| `harmonic_map` | `HarmonicMapNavigation2D` | 2 | Harmonic map to the punctured disk + the paper's adaptive harmonic potential | Paper's control law u = −K_u s J⁻¹∇ψ, integrated |
-| `custom_fields` | `CustomHarmonicFields2D` | 2 | Forest→point diffeomorphism + harmonic potential (Lemma 5 weights) | Upstream `TOPO.integrate_forest` |
+| Registry id | Upstream code called | Written here (and why) |
+|---|---|---|
+| `fast_marching` | the C++ eikonal solver (`HighAccuracyVaryingSpeedEikonalSolver` + `SignedArrivalTime`) | path extraction — the library computes the arrival-time field only. Uses the repo's standard descent (same as the potential-field baselines). |
+| `navigation_function` | — (nfsim is MATLAB source; no runtime here) | port of `krf.m` / `bi2b.m`, evaluated on the grid, then the repo's standard descent. |
+| `harmonic_map` | the C++ `HarmonicMap2D` (panel-method map, `map`, `jacob`, `puncts`) and upstream's `poly2circle` | the controller (paper eqs. 6–16) — it is not in the upstream repo. |
+| `custom_fields` | `NF.geometry.World`, `ForestToStar`, `StarToSphere`, `SphereToPoint`, `TOPO.integrate_forest` (upstream defaults) | grid → forest-world conversion, and the 3-line map composition from upstream's `test_cust_nf.PointMap` (that script imports matplotlib at module level). |
 
-### Things to know when reading the results
+### Choices needed to run on grid maps
 
-- **Timing is not apples to apples across languages.** The FMM solve and the
-  hntf2d map construction are compiled C++; FVB, the NF port and the hntf2d
-  controller are NumPy/Python; cust_fields is pure Python. Compare solve
-  times with that in mind (or compare like with like).
-- **Field descent is shared.** FMM and the NF use the same normalised ±1-cell
-  N-linear descent as the repo's potential-field planners, so they differ only
-  in the field. Large obstacle values would swamp that stencil in narrow
-  corridors, so samples are capped: at T's free-space Lipschitz bound for FMM
-  (|∇T| = 1/F), and by the upwind (downhill-only) stencil for the NF, whose
-  log field has no useful global bound. Both are an `upwind_gradient`
-  parameter, so you can sweep them.
-- **Plain FMM descends into 1-cell corridors** (shortest paths use them) and
-  can then bounce at the entrance with a 1-cell step; FM² avoids narrow
-  passages. A smaller `step_size` helps.
+- **Geometry.** Cell (x, y) is the unit square around (x, y). The continuous
+  methods use the start's face-connected free region; obstacle cells touching
+  at a corner count as one obstacle (a zero-width gap is not traversable).
+  For hntf2d's Jordan-curve boundaries, a boundary passing twice through such
+  a corner is separated by 0.05 cells.
+- **Units.** Maps are scaled into each method's native world size where its
+  behaviour depends on units: nfsim demo worlds (radius 5, so the map's
+  longer side = 10 units) for the NF, `world_size` (default 5, upstream's
+  example world) for cust_fields. hntf2d's paths do not depend on scale.
+- **Obstacles for the NF.** nfsim's implicit obstacle functions β_i become
+  the distance to each obstacle component; the grid border is obstacle 0.
+- **FMM speed.** The solver requires speed > 0, so obstacle cells get
+  `obstacle_speed` (1e-6). The goal's free neighbours are seeded with exact
+  distances, as the upstream README recommends for the high-accuracy solver.
+  `clearance_saturation > 0` switches to the Fast Marching Square speed
+  field — a separate, published variant; off by default.
+- **hntf2d integration.** The paper simulates with explicit Euler at 10 ms
+  (`dt`) and §6.1 gains. At grid scale a 10 ms step can travel several
+  cells, so such a step is split into shorter Euler steps of at most
+  `step_size` cells — same scheme, finer step, no other change.
+- **Termination.** Goal reached within 1 cell; failure on leaving free
+  space, a stalled field (no decrease for `stall_window` steps) or the
+  iteration limit — the same rules for every wrapper.
+- **cust_fields workspace.** Upstream's `Workspace` adds +0.1 to its size,
+  which would let paths leave the map; that padding is cancelled so the
+  workspace equals the map. Obstacle padding is left as upstream has it.
+- **Not run:** cust_fields' homotopy *customization* — it needs a target
+  homotopy class, which a start→goal benchmark does not define.
+
+### Reading the results
+
+- **Timing is not like-for-like across languages:** the FMM solve and the
+  hntf2d map are compiled C++; FVB, the NF port and the hntf2d controller
+  are NumPy/Python; cust_fields is pure Python.
+- **With the repo's standard descent, plain FMM and the NF zig-zag along
+  walls** (the ±1-cell stencil samples obstacle values) and plain FMM can
+  bounce at the entrance of 1-cell corridors, which shortest paths use.
 - **KR navigation functions** only guarantee a unique minimum on sphere-like
-  worlds with large enough `k`; cluttered grid maps produce local minima,
-  reported as unsolved. `k = 0` picks #obstacles + 1.
-- **hntf2d** ships only the transformation; the controller (adaptive gains
-  k_d, k_i, gate s(q), Sensors 2023 eqs. 6–16, §6.1 defaults) is implemented
-  in the wrapper. The domain is the start's face-connected free region; two
-  obstacle cells touching at a corner count as one obstacle. Integration
-  steps shrink near walls (as the continuous controller would slow), and the
-  adaptive law can make the robot approach the outer wall and reverse — a
-  sharp turn the steering metric will see.
-- **cust_fields** only handles forest worlds: free-standing obstacles that are
-  chains of overlapping rectangles, not touching the border (upstream's
-  workspace-attached trees crash: `compute_virtual_ws` builds `Rectangular`
-  with missing arguments). Its constants (λ, μ, a +0.1 squircle padding)
-  are tuned for ~5-unit worlds with a few obstacles, so maps are scaled to
-  `world_size` and λ is exposed — the right λ is map-dependent. The paper's
-  homotopy *customization* needs a target homotopy class, which a plain
-  start→goal benchmark doesn't define, so only the underlying harmonic field
-  runs. On the default map generator most maps are rejected; use maps with a
-  few obstacles kept off the border to evaluate it.
-- **nfsim** is MATLAB and no MATLAB/Octave runtime is assumed, and calling it
-  per gradient step would make its timing meaningless anyway. The KR NF is a
-  ~10-line formula (`krf.m`, `grad_krf.m`, `bi2b.m`); the port follows it
-  exactly and represents arbitrary grid obstacles by distance fields, the
-  grid analogue of nfsim's implicit obstacle functions.
+  worlds with large enough k; on cluttered maps expect local minima and flat
+  regions (φ ≈ 1), reported as unsolved. `k = 0` uses #obstacles + 1.
+- **cust_fields** handles only forest worlds: free-standing obstacles that are
+  chains of overlapping rectangles, off the border. Its star→sphere λ is
+  map-dependent (upstream tunes it per example); most default-generator maps
+  are rejected.
+
+### Problems found upstream (not patched)
+
+- **hntf2d README example** builds its "inner box" from `linspace(-1, 1)`
+  instead of `linspace(-0.1, 0.1)`, so the example boundary self-intersects
+  and its printed output is meaningless. `HarmonicMap2D` does not validate
+  input: a repeated vertex (zero-length segment) silently yields NaNs.
+- **hntf2d computes in single precision** (`Eigen::MatrixXf`), so the map and
+  Jacobian lose accuracy within about a panel of the boundary.
+- **cust_fields `ForestToStar.compute_virtual_ws`** calls
+  `Rectangular(_type, center, w, h)` without the required `theta` and `s`
+  arguments, so any obstacle tree attached to the workspace boundary raises
+  `TypeError`.
+- **cust_fields purges each obstacle tree as a parent→child chain**
+  (`obs[depth]` into `obs[depth-1]`), but its own `example_world.yaml` has a
+  three-star tree whose second and third stars do not overlap.
+- **cust_fields `SphereToPoint.compute_T_q`** starts with `T = q` and then
+  `T += …`, mutating its input array in place, so later obstacles in the
+  loop see the modified point.
+- **cust_fields uses two different squircle formulas** for the same obstacle:
+  `Rectangular.potential` (the transformation; mixes length² and length⁴
+  terms, so its shape depends on the world's scale) and `check_point_inside`
+  (the integrator's collision check). `NF/utils.py`'s ray length divides by
+  |q − centre| and emits 0/0 warnings.

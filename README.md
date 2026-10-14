@@ -16,11 +16,10 @@ pip install numpy scipy pillow flask rtree
 pip install torch        # optional — enables the "Use GPU (PyTorch)" algorithm variants
 ```
 
-Optional — the external comparison planners (Fast Marching, Koditschek–Rimon navigation function, hntf2d harmonic maps, CustFields):
+Optional — the external comparison planners (Fast Marching, Koditschek–Rimon navigation function, hntf2d harmonic maps, CustFields) need `pip install pybind11 pyyaml`, git and a C++17 compiler. The app fetches and builds them automatically (once, ~30 s) the first time a run uses them; to do it ahead of time or check a machine:
 
 ```bash
-pip install pybind11 pyyaml
-python third_party/setup_external.py             # fetch pinned upstream sources + build (~30 s)
+python third_party/setup_external.py             # fetch pinned upstream sources + build
 python third_party/setup_external.py --selftest  # verify every planner solves a small map
 ```
 

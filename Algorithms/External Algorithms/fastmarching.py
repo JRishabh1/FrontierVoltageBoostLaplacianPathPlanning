@@ -48,29 +48,27 @@ class FastMarchingAlgorithm(BaseAlgorithm):
     neighbours are seeded with exact distances so the high-accuracy
     (second-order) solver starts from a dilated boundary.
 
-    Path extraction uses the same normalised N-linear descent as the repo's
-    potential-field planners (shared ``descend_field``). Since |∇T| = 1/F, the
-    ±1-cell samples are capped at T's free-space Lipschitz bound so the huge
-    obstacle times cannot swamp the gradient in narrow corridors;
-    ``upwind_gradient`` switches to the one-sided (downhill) stencil instead.
-    Returned positions are continuous (x, y, ...) coordinates.
+    Path extraction is the repo's standard normalised N-linear gradient
+    descent (the same as the potential-field baselines; shared
+    ``descend_field``) — the upstream library computes T only. Returned
+    positions are continuous (x, y, ...) coordinates.
     """
 
     def __init__(self, map, clearance_saturation: float = 0.0, obstacle_speed: float = 1e-6,
                  high_accuracy: bool = True, step_size: float = 1.0,
-                 bilinear_interpolation: bool = True, upwind_gradient: bool = False,
-                 max_iters: int = 20000, stall_window: int = 200):
+                 bilinear_interpolation: bool = True, max_iters: int = 20000,
+                 stall_window: int = 200):
         super().__init__(map)
         self.clearance_saturation = clearance_saturation
         self.obstacle_speed = obstacle_speed
         self.high_accuracy = high_accuracy
         self.step_size = step_size
         self.bilinear_interpolation = bilinear_interpolation
-        self.upwind_gradient = upwind_gradient
         self.max_iters = max_iters
         self.stall_window = stall_window
         self._fmm = _common.import_built('external_fmm', 'fmm')
         self._path = None
+        self.failure_reason = None   # why the last solve found no path
         self._arrival = None
 
     def solve(self, visualize=False):
@@ -80,11 +78,13 @@ class FastMarchingAlgorithm(BaseAlgorithm):
                 f'fast marching binding supports 2-{self._fmm.MAX_DIMS}D grids, got {grid.ndim}D')
 
         self._arrival = self._arrival_times(grid, self.map.end)
+        diag = {}
         self._path = _common.descend_field(
             self._arrival, grid, self.map.start, self.map.end,
             step_size=self.step_size, max_iters=self.max_iters,
             stall_window=self.stall_window, interpolate=self.bilinear_interpolation,
-            max_rise=0.0 if self.upwind_gradient else _common.free_lipschitz(self._arrival, grid))
+            diag=diag)
+        self.failure_reason = diag.get('reason')
 
         if visualize:
             self._visualize()

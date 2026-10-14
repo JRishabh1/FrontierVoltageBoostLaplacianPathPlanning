@@ -63,21 +63,16 @@ class HarmonicMapNavigation2D(Algorithm2D):
            psi = (1 + tanh(phi / w_phi)) / 2
            u   = −K_u s(q, k) J⁻¹(p) ∇psi
 
-       with the adaptive laws for k_d (raised only near degenerate critical
-       points) and k_i (decayed near the outer boundary so it stays
-       repulsive). Defaults are the paper's Section 6.1 values.
+       with the adaptive laws for k_d and k_i. Defaults are the paper's
+       Section 6.1 values.
 
-    The closed loop is integrated with explicit Euler. The paper's time scale
-    is arbitrary for path generation, so each step lasts as long as allowed by
-    four limits: at most ``step_size`` cells of travel, at most half the
-    workspace distance to the nearest wall, at most half the remaining disk
-    distance to the unit circle or a puncture it is approaching (so the
-    boundary gate s(q) — active only within ε_p of the circle — and the k_i
-    decay take effect before the boundary is crossed), and at most
-    ``dt_max``. Near walls the steps therefore shrink geometrically, as the
-    continuous-time controller would slow down. The gains k are advanced over the same interval in
-    sub-steps of at most ``dt`` (exact exponential update for the linear k_i
-    law, so they stay within [0, k̄_i]).
+    Integration follows the paper: explicit Euler on (p, k) with a 10 ms
+    step (``dt``). The only change is that a step which would travel more
+    than ``step_size`` cells is taken as a shorter Euler step instead (same
+    scheme, finer time step), since at grid scale a 10 ms step can jump
+    across several cells. Nothing else alters the trajectory: there is no
+    wall handling beyond the controller itself, and leaving the free cells
+    counts as a failure.
 
     Maps where start and goal are not face-connected (only a diagonal pinch
     joins them) are outside the method's continuous-domain model and are
@@ -90,7 +85,7 @@ class HarmonicMapNavigation2D(Algorithm2D):
                  gamma: float = 0.7, alpha: float = 1.0, eps_p: float = 0.025,
                  eps_v: float = 0.1, eps_1: float = 0.01, eps_2: float = 0.1,
                  eps_3: float = 0.1, m: int = -2, dt: float = 0.01,
-                 dt_max: float = 0.5, max_iters: int = 20000, stall_window: int = 2000):
+                 max_iters: int = 20000, stall_window: int = 2000):
         super().__init__(map)
         self.panel_length = panel_length
         self.step_size = step_size
@@ -100,14 +95,14 @@ class HarmonicMapNavigation2D(Algorithm2D):
         self.eps_p, self.eps_v = eps_p, eps_v
         self.eps_1, self.eps_2, self.eps_3 = eps_1, eps_2, eps_3
         self.m = m
-        self.dt, self.dt_max = dt, dt_max
+        self.dt = dt
         self.max_iters = max_iters
         self.stall_window = stall_window
         self._ext = _common.import_built('external_hntf2d', 'hntf2d')
         self._poly2circle = self._load_poly2circle()
         self._path = None
         self.hmap = None
-        self._edges = None   # boundary segments (start points, end points)
+        self.failure_reason = None   # why the last solve found no path
 
     @staticmethod
     def _load_poly2circle():
@@ -130,8 +125,7 @@ class HarmonicMapNavigation2D(Algorithm2D):
                 'start and goal are not face-connected — only a diagonal gap joins '
                 'them, which has zero width in the harmonic map\'s continuous domain')
 
-        self.hmap, loops = self._build_map(domain)
-        self._edges = (np.vstack([l[:-1] for l in loops]), np.vstack([l[1:] for l in loops]))
+        self.hmap = self._build_map(domain)
         self._path = self._navigate(domain, start, end)
         if visualize:
             self._visualize()
@@ -159,29 +153,24 @@ class HarmonicMapNavigation2D(Algorithm2D):
             hm.boundary_append(_common.resample_polygon(hole, self.panel_length))
         uo, vo = self._poly2circle(outer_panels).T
         hm.solve(uo, vo)
-        return hm, loops
-
-    def _wall_distance(self, p):
-        """Euclidean distance from p to the domain boundary polygons."""
-        a, b = self._edges
-        ab = b - a
-        t = np.clip(np.einsum('ij,ij->i', p - a, ab) / np.einsum('ij,ij->i', ab, ab), 0.0, 1.0)
-        return float(np.sqrt(np.min(np.sum((a + t[:, None] * ab - p) ** 2, axis=1))))
+        return hm
 
     # ------------------------------------------------------------------
     # Stage 2: adaptive harmonic potential + Jacobian pull-back
     # ------------------------------------------------------------------
 
     def _navigate(self, domain, start, end):
+        def at(pt):
+            return f'({pt[0]:.1f}, {pt[1]:.1f})'
+
         hm = self.hmap
         punct = hm.puncts()
         P = np.zeros((0, 2)) if punct is None else np.asarray(punct, dtype=float).reshape(-1, 2)
-        n = len(P)
         q_d = np.asarray(hm.map(*end), dtype=float)
 
         k_d = float(self.k_d0)
-        k = np.full(n, float(self.k_i0))
-        k_bar = np.full(n, float(self.k_bar))
+        k = np.full(len(P), float(self.k_i0))
+        k_bar = np.full(len(P), float(self.k_bar))
 
         grid = domain.astype(np.uint8) ^ 1   # cells outside the domain are blocked
         p = np.array(start, dtype=float)
@@ -193,26 +182,25 @@ class HarmonicMapNavigation2D(Algorithm2D):
             J = np.asarray(hm.jacob(*p), dtype=float)
             terms = self._terms(q, q_d, P, k_d, k, k_bar)
             if terms is None:
-                return None
+                return self._fail(f'hit a puncture/goal singularity of the disk at {at(p)}')
             try:
                 u = -self.K_u * terms['s'] * np.linalg.solve(J, terms['grad_psi'])
             except np.linalg.LinAlgError:
-                return None   # singular Jacobian (numerically degenerate map)
+                return self._fail(f'singular harmonic-map Jacobian at {at(p)}')
             speed = float(np.hypot(*u))
-            if not math.isfinite(speed) or speed == 0.0:
-                return None
+            if not math.isfinite(speed):
+                return self._fail(f'non-finite control at {at(p)}')
+            kd_rate, A, B = self._gain_rates(q, q_d, P, k_d, k, k_bar, terms)
 
-            # Travel at most step_size, and at most half the distance to the
-            # nearest wall: the panel-method map is only approximate within
-            # about a panel of the boundary, so the disk-space limit alone
-            # cannot keep a cell-scale step inside the domain.
-            dt_eff = min(min(self.step_size, 0.5 * self._wall_distance(p)) / speed,
-                         self.dt_max, self._boundary_dt(q, P, terms))
-            k_d, k = self._advance_gains(q, q_d, P, k_d, k, k_bar, dt_eff, terms)
+            # Explicit Euler (paper: 10 ms), with a shorter step only when the
+            # 10 ms step would travel more than step_size cells.
+            h = min(self.dt, self.step_size / speed) if speed > 0 else self.dt
+            p = p + h * u
+            k_d += h * kd_rate
+            k = k + h * (A - B * k)
 
-            p = p + dt_eff * u
             if not _common.in_free_cell(grid, (p[1], p[0])):
-                return None
+                return self._fail(f'left free space at {at(p)}')
             path.append((float(p[0]), float(p[1])))
 
             if abs(end[0] - p[0]) <= 1 and abs(end[1] - p[1]) <= 1:
@@ -225,30 +213,12 @@ class HarmonicMapNavigation2D(Algorithm2D):
             else:
                 since_anchor += 1
                 if since_anchor >= self.stall_window:
-                    return None
+                    return self._fail(f'stuck near {at(p)} for {self.stall_window} steps')
+        return self._fail(f'goal not reached within {self.max_iters} steps')
+
+    def _fail(self, reason):
+        self.failure_reason = reason
         return None
-
-    def _boundary_dt(self, q, P, t):
-        """Longest step that closes at most half the disk distance to the unit
-        circle or to any puncture it is moving towards.
-
-        In the disk the motion is q̇ = J u = −K_u s ∇ψ. The boundary gate s is
-        only active within ε_p of the circle — far thinner than a workspace
-        cell — so without this limit a single step could jump across it before
-        s and the k_i decay act. Motion away from a boundary is not limited.
-        """
-        q_dot = -self.K_u * t['s'] * t['grad_psi']
-        limit = math.inf
-        closing = float(q_dot @ q) / t['nq']
-        if closing > 0:
-            limit = 0.5 * max(1.0 - t['nq'], 0.0) / closing
-        if len(P):
-            dist = np.sqrt(t['r_i2'])
-            closing_i = -(t['dQ'] @ q_dot) / dist
-            towards = closing_i > 0
-            if towards.any():
-                limit = min(limit, float(np.min(0.5 * dist[towards] / closing_i[towards])))
-        return limit
 
     def _terms(self, q, q_d, P, k_d, k, k_bar):
         """Potential, gain function s and adaptive-law ingredients at q."""
@@ -319,21 +289,6 @@ class HarmonicMapNavigation2D(Algorithm2D):
         A = k_bar * a
         B = a + self.K_k * h * w0 * (g0 + float(_xi_1(s, self.eps_2)))
         return kd_rate, A, B
-
-    def _advance_gains(self, q, q_d, P, k_d, k, k_bar, dt_eff, terms):
-        n_sub = max(1, math.ceil(dt_eff / self.dt))
-        h = dt_eff / n_sub
-        for i in range(n_sub):
-            if i:
-                terms = self._terms(q, q_d, P, k_d, k, k_bar)
-            kd_rate, A, B = self._gain_rates(q, q_d, P, k_d, k, k_bar, terms)
-            k_d += h * kd_rate
-            if len(k):
-                decay = np.exp(-B * h)
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    k_star = np.where(B > 0, A / B, k)
-                k = k_star + (k - k_star) * decay
-        return k_d, k
 
     def _visualize(self):
         from PIL import Image
