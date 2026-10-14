@@ -27,63 +27,58 @@ class KoditschekRimonNF(BaseAlgorithm):
 
     Port of the KRF of johnyf/nfsim (BSD-2; MATLAB) — ``krf.m``::
 
-        phi = gd / (gd^k + beta)^(1/k),   gd = ||q - q_d||^2,  beta = prod_i beta_i
+        b   = prod_i beta_i          (bi2b.m)
+        b(b < 0) = 0
+        phi = gd ./ (gd.^k + b).^(1/k),   gd = ||q - q_d||^2
 
-    with ``bi2b.m``'s product obstacle function. nfsim represents arbitrary
-    obstacles by implicit functions beta_i (zero on the boundary, positive in
-    free space); on an occupancy grid the natural implicit function for each
-    obstacle is its Euclidean distance field, so beta_i is the distance (in
-    cells, measured to the obstacle's cell faces) to obstacle component i. The
-    workspace boundary is one more obstacle: the region outside the grid plus
-    every obstacle touching the border. Components merge obstacles that touch,
-    including diagonally. Like nfsim (``b(b < 0) = 0``), phi = 1 on obstacles.
-
-    The descent runs on ``log(gd^k / beta) = k·log gd − Σ log beta_i``,
-    a strictly increasing function of phi (phi^-k = 1 + beta/gd^k), so it has
-    the same critical points and gradient direction as phi — exactly the
-    direction of nfsim's analytic gradient ``grad_krf.m``,
-    ``(Dgd·b − Db·gd/k)·c`` with c > 0. Working in log space avoids the
-    flat-plateau underflow of phi itself (phi ≈ 1 away from the goal for large
-    k) without changing the planner.
+    evaluated at every grid cell. nfsim represents arbitrary obstacles by
+    implicit functions beta_i (zero on the boundary, positive in free space);
+    on an occupancy grid each obstacle's implicit function is its Euclidean
+    distance field (to the obstacle's cell faces). The workspace boundary is
+    one more obstacle: the region outside the grid plus every obstacle
+    touching the border; obstacles that touch (also diagonally) merge.
+    Coordinates are scaled to nfsim's demo worlds (radius 5): the map's
+    longer side spans 10 units — phi depends on the length unit through
+    gd^k versus b. The arithmetic is done in log space only to avoid
+    overflowing gd^k; the values are krf.m's.
 
     ``k`` is the KR tuning parameter (0 = automatic: number of obstacles + 1,
-    nfsim's "> #obstacles" rule of thumb). KR guarantees a unique minimum only
+    from krf.m's note "k > #obstacles"). KR guarantees a unique minimum only
     on sphere(-like) worlds with k large enough; on cluttered grid maps local
-    minima are expected and are reported as unsolved.
+    minima and flat plateaus (phi ≈ 1) are expected and are reported as
+    unsolved.
 
-    Descent: the repo's normalised N-linear gradient descent (shared
-    ``descend_field``). By default it uses the one-sided (upwind) stencil —
-    only the downhill neighbour of each axis — because the log field has no
-    useful global Lipschitz bound (it is singular at the goal) and with a
-    central stencil the obstacle wall makes the path zig-zag along obstacle
-    faces. ``upwind_gradient=False`` caps the central stencil at the largest
-    free-to-free neighbour change instead. Returned positions are continuous
-    (x, y, ...).
+    Descent: the repo's standard normalised N-linear gradient descent (the
+    same as the potential-field baselines; shared ``descend_field``) on phi.
+    Returned positions are continuous (x, y, ...).
     """
 
+    WORLD_SIZE = 10.0   # nfsim demo worlds: workspace radius r0 = 5
+
     def __init__(self, map, k: float = 0.0, step_size: float = 1.0,
-                 bilinear_interpolation: bool = True, upwind_gradient: bool = True,
-                 max_iters: int = 20000, stall_window: int = 200):
+                 bilinear_interpolation: bool = True, max_iters: int = 20000,
+                 stall_window: int = 200):
         super().__init__(map)
         self.k = k
         self.step_size = step_size
         self.bilinear_interpolation = bilinear_interpolation
-        self.upwind_gradient = upwind_gradient
         self.max_iters = max_iters
         self.stall_window = stall_window
         self._path = None
-        self._field = None
+        self.failure_reason = None   # why the last solve found no path
+        self._phi = None
         self.k_used = None
 
     def solve(self, visualize=False):
         grid = self.map.grid
-        self._field = self._log_field(grid, self.map.end)
+        self._phi = self._krf(grid, self.map.end)
+        diag = {}
         self._path = _common.descend_field(
-            self._field, grid, self.map.start, self.map.end,
+            self._phi, grid, self.map.start, self.map.end,
             step_size=self.step_size, max_iters=self.max_iters,
             stall_window=self.stall_window, interpolate=self.bilinear_interpolation,
-            max_rise=0.0 if self.upwind_gradient else _common.free_lipschitz(
-                self._field, grid, exclude=tuple(reversed(self.map.end))))
+            diag=diag)
+        self.failure_reason = diag.get('reason')
         if visualize:
             self._visualize()
         return self._path
@@ -93,9 +88,10 @@ class KoditschekRimonNF(BaseAlgorithm):
             self._visualize()
         return self._path
 
-    def _log_field(self, grid, end):
+    def _krf(self, grid, end):
         ndim = grid.ndim
         free = grid == 0
+        unit = self.WORLD_SIZE / max(grid.shape)   # world units per cell
 
         # Obstacle components, with the grid surroundings as obstacle 0.
         padded = np.pad(~free, 1, constant_values=True)
@@ -105,24 +101,25 @@ class KoditschekRimonNF(BaseAlgorithm):
         k = self.k if self.k > 0 else n_obs + 1
         self.k_used = k
 
-        log_beta = np.zeros(grid.shape)
-        for lab in range(1, n_obs + 1):
-            dist = ndimage.distance_transform_edt(labels != lab)[inner]
-            # beta_i = distance to the obstacle's faces (0.5 from its cell
-            # centres); free cells are always >= 0.5 away.
-            with np.errstate(divide='ignore'):
-                log_beta += np.log(np.maximum(dist - 0.5, 0.0))
+        # log b = sum_i log beta_i, beta_i = distance to obstacle i's faces
+        log_b = np.zeros(grid.shape)
+        with np.errstate(divide='ignore'):
+            for lab in range(1, n_obs + 1):
+                dist = ndimage.distance_transform_edt(labels != lab)[inner]
+                log_b += np.log(np.maximum(dist - 0.5, 0.0) * unit)
 
         coords = np.indices(grid.shape, dtype=float)
         end_g = tuple(reversed(end))
-        gd = sum((coords[d] - end_g[d]) ** 2 for d in range(ndim))
-        gd[end_g] = 1e-12   # goal: log gd -> -inf, keep it finite
+        gd = sum(((coords[d] - end_g[d]) * unit) ** 2 for d in range(ndim))
 
-        field = k * np.log(gd) - log_beta
-        # phi = 1 on obstacles (nfsim clamps beta < 0 to 0): a wall well above
-        # every free-space value.
-        field[~free] = field[free].max() + 1e3
-        return field
+        # phi = gd / (gd^k + b)^(1/k)  ==  exp(log gd - logaddexp(k log gd, log b) / k)
+        with np.errstate(divide='ignore'):
+            log_gd = np.log(gd)
+        log_phi = log_gd - np.logaddexp(k * log_gd, log_b) / k
+        phi = np.exp(log_phi)
+        phi[end_g] = 0.0
+        phi[~free] = 1.0   # b(b < 0) = 0 -> phi = 1 on obstacles
+        return phi
 
     def _visualize(self):
         if self.map.grid.ndim != 2:

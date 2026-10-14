@@ -18,7 +18,7 @@ Requirements: git, a C++17 compiler, and ``pip install pybind11 pyyaml``.
 """
 
 import argparse
-import importlib
+import importlib.machinery
 import os
 import shutil
 import subprocess
@@ -153,19 +153,35 @@ def build_cust_fields():
 BUILDERS = {'fmm': build_fmm, 'hntf2d': build_hntf2d, 'cust_fields': build_cust_fields}
 
 
+# component -> (compiled module or None, files that must exist in third_party/src)
+_RUNTIME = {
+    'fmm': ('external_fmm', []),
+    'hntf2d': ('external_hntf2d', [('hntf2d', 'cy', 'hntf2d', 'utils.py')]),
+    'cust_fields': (None, [('cust_fields', 'NF', 'transformation.py'),
+                           ('cust_fields', 'TOPO', '__init__.py')]),
+}
+
+
+def is_ready(component: str) -> bool:
+    """True when ``component`` can run under *this* Python interpreter.
+
+    Checks files only (no imports): a compiled module must exist with this
+    interpreter's extension suffix, so a build made with another Python
+    version counts as missing.
+    """
+    module, files = _RUNTIME[component]
+    if module and not any(os.path.isfile(os.path.join(BUILD_DIR, module + suffix))
+                          for suffix in importlib.machinery.EXTENSION_SUFFIXES):
+        return False
+    return all(os.path.isfile(os.path.join(SRC_DIR, *f)) for f in files)
+
+
 def check() -> dict:
     """Return {component: (ok, detail)} without fetching or building."""
-    status = {}
-    sys.path.insert(0, BUILD_DIR)
-    for comp, module in (('fmm', 'external_fmm'), ('hntf2d', 'external_hntf2d')):
-        try:
-            importlib.import_module(module)
-            status[comp] = (True, 'built')
-        except ImportError as exc:
-            status[comp] = (False, f'not built ({exc})')
-    cf = os.path.join(SRC_DIR, 'cust_fields', 'NF', 'transformation.py')
-    status['cust_fields'] = (os.path.isfile(cf), 'fetched' if os.path.isfile(cf) else 'not fetched')
-    return status
+    py = f'Python {sys.version_info.major}.{sys.version_info.minor}'
+    return {comp: (True, f'ready for {py}') if is_ready(comp)
+            else (False, f'not set up for {py} ({sys.executable})')
+            for comp in COMPONENTS}
 
 
 def selftest() -> bool:

@@ -63,18 +63,16 @@ class CustomHarmonicFields2D(Algorithm2D):
     """
 
     def __init__(self, map, world_size: float = 5.0, nf_lambda: float = 1e5,
-                 squircle_s: float = 0.99, step_size: float = 1.0,
-                 clearance: float = 0.0, max_iters: int = 3000):
+                 squircle_s: float = 0.99, max_iters: int = 3000):
         super().__init__(map)
         self.world_size = world_size
         self.nf_lambda = nf_lambda
         self.squircle_s = squircle_s
-        self.step_size = step_size
-        self.clearance = clearance
         self.max_iters = max_iters
         self._cf = self._import_upstream()
         self._path = None
         self.world = None
+        self.failure_reason = None   # why the last solve found no path
 
     @staticmethod
     def _import_upstream():
@@ -117,19 +115,27 @@ class CustomHarmonicFields2D(Algorithm2D):
         roots = [np.array(group[0].center, dtype=float) for group in self.world.obstacles]
         n_obs = len(roots)
         weights = np.array([max(6.0, n_obs + 1.1)] + [1.0] * n_obs)   # upstream projected init
-        cfg = TOPO.IntegrConfig(dt=self.step_size * scale, max_steps=self.max_iters,
-                                goal_tol=scale, safe=self.clearance * scale)
+        # upstream integrator defaults (dt 0.03, goal_tol 0.05, safe 0.05 world units)
+        cfg = TOPO.IntegrConfig(max_steps=self.max_iters)
         # upstream's squircle ray length (NF/utils.py) divides by |q − centre|,
         # which emits 0/0 RuntimeWarnings for some evaluations; keep logs quiet
         with np.errstate(divide='ignore', invalid='ignore'):
             fpath, reached = TOPO.integrate_forest(self.world, pmap, roots, weights,
                                                    start_w, goal_w, cfg)
+        last = fpath[-1] / scale - 0.5
         if not reached:
             self._path = None
+            if len(fpath) - 1 >= self.max_iters:
+                self.failure_reason = f'upstream integrator hit its step limit ({self.max_iters})'
+            else:
+                self.failure_reason = (f'upstream integrator stalled at ({last[0]:.1f}, {last[1]:.1f}) — '
+                                       'could not advance without entering an obstacle squircle')
         else:
             path = [tuple(float(c) for c in pt / scale - 0.5) for pt in fpath]
             path.append((float(end[0]), float(end[1])))
             self._path = path if _common.path_is_free(grid, path) else None
+            if self._path is None:
+                self.failure_reason = 'integrated path crosses an obstacle cell'
 
         if visualize:
             self._visualize()
