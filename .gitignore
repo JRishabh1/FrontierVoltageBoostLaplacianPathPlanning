@@ -17,3 +17,6 @@ start_end_points.csv
 .qodo/
 .venv/
 .env
+
+# Benchmark suite output (benchmarks/run_suite.py)
+benchmarks/results/
