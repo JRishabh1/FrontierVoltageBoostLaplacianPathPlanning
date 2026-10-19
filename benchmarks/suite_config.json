@@ -1,0 +1,45 @@
+{
+  "_comment": "Benchmark suite for benchmarks/run_suite.py. Each algorithm entry is {id, params, label}; ids are benchmark_app/registry.py ids. 'cpu' entries run in the cpu-cpu condition; 'gpu' entries run in gpu-gpu (CUDA visible) and gpu-cpu (CUDA hidden, PyTorch falls back to CPU).",
+  "seed": 2026,
+  "obstacles": [5, 30],
+  "timeouts_s": {"100": 60, "512": 600, "1000": 1800},
+  "algorithms": {
+    "cpu": [
+      {"id": "astar", "params": {"timeout": 1800}, "label": "A*"},
+      {"id": "potential_field", "params": {}, "label": "PF q*=30"},
+      {"id": "potential_field", "params": {"q_star": 10}, "label": "PF q*=10"},
+      {"id": "potential_field_nd", "params": {}, "label": "PF-ND"},
+      {"id": "rrt", "params": {"seed": 0}, "label": "RRT step 1"},
+      {"id": "rrt", "params": {"seed": 0, "step_size": 3.0, "max_iterations": 20000}, "label": "RRT step 3"},
+      {"id": "fvb_laplace", "params": {}, "label": "FVB n_l=100"},
+      {"id": "fvb_laplace", "params": {"n_l": 50}, "label": "FVB n_l=50"},
+      {"id": "fvb_laplace_nd", "params": {}, "label": "FVB-ND"},
+      {"id": "rrt_laplace_random", "params": {"seed": 0}, "label": "RRT-Laplace random"},
+      {"id": "rrt_laplace_frontier", "params": {"seed": 0}, "label": "RRT-Laplace frontier"},
+      {"id": "fast_marching", "params": {}, "label": "FMM"},
+      {"id": "fast_marching", "params": {"clearance_saturation": 5}, "label": "FM2 sat=5"},
+      {"id": "navigation_function", "params": {}, "label": "KR-NF k=auto"},
+      {"id": "navigation_function", "params": {"k": 50}, "label": "KR-NF k=50"},
+      {"id": "harmonic_map", "params": {}, "label": "hntf2d panel=1"},
+      {"id": "harmonic_map", "params": {"panel_length": 2.0}, "label": "hntf2d panel=2"},
+      {"id": "custom_fields", "params": {}, "label": "CustFields lambda=1e5"},
+      {"id": "custom_fields", "params": {"nf_lambda": 1e9}, "label": "CustFields lambda=1e9"}
+    ],
+    "gpu": [
+      {"id": "potential_field", "params": {"use_gpu": true}, "label": "PF q*=30 [GPU]"},
+      {"id": "potential_field_nd", "params": {"use_gpu": true}, "label": "PF-ND [GPU]"},
+      {"id": "rrt", "params": {"seed": 0, "use_gpu": true}, "label": "RRT step 1 [GPU]"},
+      {"id": "fvb_laplace", "params": {"use_gpu": true}, "label": "FVB n_l=100 [GPU]"},
+      {"id": "fvb_laplace", "params": {"n_l": 50, "use_gpu": true}, "label": "FVB n_l=50 [GPU]"},
+      {"id": "fvb_laplace_nd", "params": {"use_gpu": true}, "label": "FVB-ND [GPU]"},
+      {"id": "rrt_laplace_random", "params": {"seed": 0, "use_gpu": true}, "label": "RRT-Laplace random [GPU]"},
+      {"id": "rrt_laplace_frontier", "params": {"seed": 0, "use_gpu": true}, "label": "RRT-Laplace frontier [GPU]"},
+      {"id": "eikonal_gpu", "params": {}, "label": "Eikonal iterative [GPU]"},
+      {"id": "eikonal_gpu", "params": {"clearance_saturation": 5}, "label": "Eikonal iterative sat=5 [GPU]"},
+      {"id": "navigation_function_gpu", "params": {}, "label": "KR-NF k=auto [GPU]"},
+      {"id": "navigation_function_gpu", "params": {"k": 50}, "label": "KR-NF k=50 [GPU]"},
+      {"id": "harmonic_map_gpu", "params": {}, "label": "Harmonic map panel=1 [GPU]"},
+      {"id": "harmonic_map_gpu", "params": {"panel_length": 2.0}, "label": "Harmonic map panel=2 [GPU]"}
+    ]
+  }
+}
