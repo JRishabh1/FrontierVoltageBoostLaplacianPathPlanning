@@ -23,7 +23,7 @@ python third_party/setup_external.py             # fetch pinned upstream sources
 python third_party/setup_external.py --selftest  # verify every planner solves a small map
 ```
 
-See [third_party/README.md](third_party/README.md) for what each wrapper does, licenses, and caveats when comparing. Note: the Koditschek–Rimon navigation function is a Python translation of nfsim's MATLAB code (no MATLAB needed); the other three call the upstream code directly.
+See [third_party/README.md](third_party/README.md) for what each wrapper does, licenses, and caveats when comparing. Note: the Koditschek–Rimon navigation function is a Python translation of nfsim's MATLAB code (no MATLAB needed); the other three call the upstream code directly. GPU variants of three of them (labelled `[GPU · …]`, our PyTorch implementations for testing) need `pip install torch`; check them with `python third_party/setup_external.py --gputest`.
 
 (`rtree` is used by the incremental RRT–Laplace planners for tree connectivity; `pip install rtree` ships the native library, no extra setup.)
 

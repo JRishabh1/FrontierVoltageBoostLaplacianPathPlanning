@@ -57,6 +57,13 @@ def source_dir(name: str, component: str) -> str:
     return path
 
 
+def torch_device() -> str:
+    """'cuda' when an NVIDIA GPU is available, else 'cpu' — the same rule as the
+    repo's other GPU variants. (Apple MPS is not used: it has no float64.)"""
+    import torch
+    return 'cuda' if torch.cuda.is_available() else 'cpu'
+
+
 # ---------------------------------------------------------------------------
 # Field descent
 # ---------------------------------------------------------------------------

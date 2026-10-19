@@ -54,7 +54,7 @@ def _worker(conn, algo_id: str, params: dict, grid: np.ndarray, start: tuple, en
         # tensor/conv op pays one-time dispatcher + algorithm-selection setup —
         # that's environment overhead, not algorithm work. Do it all here so
         # the timed region below measures the solve itself.
-        if (params or {}).get('use_gpu'):
+        if spec.gpu or (params or {}).get('use_gpu'):
             import torch
             import torch.nn.functional as tF
             device = 'cuda' if torch.cuda.is_available() else 'cpu'

@@ -458,13 +458,14 @@ def _execute_run(job: dict):
         _ensure_external(job, manifest['algorithms'])
 
         # 'Use GPU' needs PyTorch (CUDA is used when available, CPU otherwise).
-        if any((a.get('params') or {}).get('use_gpu') for a in manifest['algorithms']):
+        if any(get_spec(a['id']).gpu or (a.get('params') or {}).get('use_gpu')
+               for a in manifest['algorithms']):
             try:
                 import torch  # noqa: F401
             except ImportError:
                 raise RuntimeError(
-                    "'Use GPU' requested but PyTorch is not installed — "
-                    "run `pip install torch` or untick Use GPU.")
+                    "a GPU algorithm or 'Use GPU' was selected but PyTorch is not "
+                    "installed — run `pip install torch` (or drop the GPU options).")
 
         wanted = manifest.get('map_names')
         maps = [m for m in ms['maps'] if not wanted or m['name'] in wanted]

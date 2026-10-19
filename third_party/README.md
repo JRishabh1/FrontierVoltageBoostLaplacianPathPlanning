@@ -60,6 +60,37 @@ app's watchdog subprocess, and report why a map was not solved: either
 | `harmonic_map` | the C++ `HarmonicMap2D` (panel-method map, `map`, `jacob`, `puncts`) and upstream's `poly2circle` | the controller (paper eqs. 6–16) — it is not in the upstream repo. |
 | `custom_fields` | `NF.geometry.World`, `ForestToStar`, `StarToSphere`, `SphereToPoint`, `TOPO.integrate_forest` (upstream defaults) | grid → forest-world conversion, and the 3-line map composition from upstream's `test_cust_nf.PointMap` (that script imports matplotlib at module level). |
 
+### GPU variants (for testing)
+
+Three PyTorch versions are registered as **separate algorithms**, labelled
+`[GPU · …]` in the app. They are our implementations, not upstream code, and
+run on CUDA when an NVIDIA GPU is visible (CPU-PyTorch otherwise; Apple MPS
+is not used because it has no float64). As with the repo's other GPU
+options, the solver subprocess initialises CUDA before the timed region, and
+path descent / the controller loop stay on the CPU.
+
+| Registry id | Runs on the GPU | Relation to the CPU planner (verified) |
+|---|---|---|
+| `navigation_function_gpu` | per-obstacle distances (exact nearest-cell search) and the φ assembly | same φ as `navigation_function` to ~1e-15; identical paths on all maps tested (2D/3D/4D) |
+| `eikonal_gpu` | a parallel iterative eikonal solver (first-order Godunov updates, Jacobi sweeps — the Fast Iterative Method's scheme) | **not FMM**: FMM's priority queue does not parallelise. Equals the upstream library run with `high_accuracy=False` to ~1e-13; the default (second-order) `fast_marching` is ~3× more accurate against exact distances |
+| `harmonic_map_gpu` | the harmonic map: panel method written from the paper's §3 equations, dense solve in float64 | map within ~1e-5 of hntf2d's (float32) on our maps; controller identical. Paths that graze walls can still differ because of the precision difference |
+
+No GPU version of cust_fields: it evaluates one point at a time in Python
+(nothing to parallelise), and porting its unlicensed code would copy it into
+this repo. `harmonic_map_gpu` is written from the paper, not translated from
+hntf2d's GPL code.
+
+On a machine with an NVIDIA GPU:
+
+```bash
+pip install torch          # a CUDA build — see pytorch.org for the right command
+python third_party/setup_external.py --gputest
+```
+
+`--gputest` reports the device, then runs each GPU variant next to its CPU
+counterpart on small 2D/3D maps, checks they agree, and prints both timings.
+Without CUDA the GPU variants work but are slower than the CPU versions.
+
 ### MATLAB → Python conversion (nfsim)
 
 nfsim is MATLAB-only, so the Koditschek–Rimon navigation function is a

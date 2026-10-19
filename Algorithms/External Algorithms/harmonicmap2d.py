@@ -98,11 +98,14 @@ class HarmonicMapNavigation2D(Algorithm2D):
         self.dt = dt
         self.max_iters = max_iters
         self.stall_window = stall_window
-        self._ext = _common.import_built('external_hntf2d', 'hntf2d')
-        self._poly2circle = self._load_poly2circle()
+        self._load_backend()
         self._path = None
         self.hmap = None
         self.failure_reason = None   # why the last solve found no path
+
+    def _load_backend(self):
+        self._ext = _common.import_built('external_hntf2d', 'hntf2d')
+        self._poly2circle = self._load_poly2circle()
 
     @staticmethod
     def _load_poly2circle():
@@ -140,18 +143,20 @@ class HarmonicMapNavigation2D(Algorithm2D):
     # Stage 1: harmonic map (hntf2d)
     # ------------------------------------------------------------------
 
-    def _build_map(self, domain):
+    def _panel_loops(self, domain):
+        """Boundary polylines split into panels: outer (CCW) first, then holes (CW)."""
         loops = _common.domain_boundaries(domain)
         outer = [l for l in loops if _common.polygon_area(l) > 0]
         holes = [l for l in loops if _common.polygon_area(l) < 0]
         assert len(outer) == 1, 'a face-connected region has exactly one outer boundary'
+        return [_common.resample_polygon(l, self.panel_length) for l in outer + holes]
 
+    def _build_map(self, domain):
+        panels = self._panel_loops(domain)
         hm = self._ext.HarmonicMap2D()
-        outer_panels = _common.resample_polygon(outer[0], self.panel_length)
-        hm.boundary_append(outer_panels)
-        for hole in holes:
-            hm.boundary_append(_common.resample_polygon(hole, self.panel_length))
-        uo, vo = self._poly2circle(outer_panels).T
+        for loop in panels:
+            hm.boundary_append(loop)
+        uo, vo = self._poly2circle(panels[0]).T
         hm.solve(uo, vo)
         return hm
 
@@ -303,3 +308,127 @@ class HarmonicMapNavigation2D(Algorithm2D):
         rgb[sy, sx] = [0, 255, 0]
         rgb[ey, ex] = [255, 0, 0]
         Image.fromarray(rgb, mode='RGB').save('harmonic_map_result.png')
+
+
+class HarmonicMapNavigation2DGPU(HarmonicMapNavigation2D):
+    """GPU variant of :class:`HarmonicMapNavigation2D` (PyTorch; CUDA when available).
+
+    Same domain, panels and paper controller; only the harmonic map differs:
+    instead of hntf2d's C++ it uses :class:`PanelHarmonicMapTorch`, a panel
+    method written from the paper's equations (§3, eqs. 2–5) and solved in
+    float64 on the device — the dense solve is the expensive part. Not
+    upstream code (hntf2d is not used), and float64 rather than hntf2d's
+    float32, so maps agree closely but not bit-for-bit.
+    """
+
+    def _load_backend(self):
+        self._device = _common.torch_device()
+
+    def _build_map(self, domain):
+        return PanelHarmonicMapTorch(self._panel_loops(domain), self._device)
+
+
+class PanelHarmonicMapTorch:
+    """Harmonic map of a multiply connected planar domain onto the unit disk,
+    each hole collapsing to a point — the panel method as described in Vlantis
+    et al. (Sensors 2023, §3), written from the paper:
+
+    * u(p), v(p) = Σ_j C_j H_j(p) with H_j(p) = ∫ ln‖p − x‖ ds over straight
+      panel j (constant shape functions), collocation at panel midpoints;
+    * eq. (2): on the outer boundary T = T∂, the arc-length parametrisation
+      onto the unit circle (counter-clockwise, interior on the left);
+    * each hole i: T equals an unknown point (u_i, v_i) on its boundary, and
+      eq. (3) the outward flux of T through it vanishes,
+      Σ_k ∂T/∂n(p*_k) = 0 over its collocation points.
+
+    The (M + #holes)-square system (eq. 5) is solved once for u and v.
+    Interface matches hntf2d's ``HarmonicMap2D`` as used by the controller:
+    ``map``, ``jacob`` (rows u, v; columns x, y) and ``puncts``.
+    """
+
+    def __init__(self, loops, device='cpu'):
+        import torch
+        self._torch = torch
+        dt = torch.float64
+        a = np.vstack([l[:-1] for l in loops])
+        b = np.vstack([l[1:] for l in loops])
+        owner = np.concatenate([np.full(len(l) - 1, i) for i, l in enumerate(loops)])
+        n_holes = len(loops) - 1
+        m = len(a)
+
+        self.A = torch.tensor(a, dtype=dt, device=device)
+        ab = torch.tensor(b - a, dtype=dt, device=device)
+        self.L = torch.linalg.norm(ab, dim=1)
+        self.t = ab / self.L[:, None]                                   # panel direction
+        self.n = torch.stack([-self.t[:, 1], self.t[:, 0]], dim=1)      # left normal (into the domain)
+        mid = self.A + 0.5 * ab
+
+        H, G = self._influence(mid)
+        # ∂H_j/∂n at collocation point k; on its own panel the domain-side
+        # limit of the normal derivative of ∫ ln r ds is +π.
+        D = torch.einsum('kmd,kd->km', G, self.n)
+        D.fill_diagonal_(np.pi)
+
+        owner_t = torch.tensor(owner, device=device)
+        mat = torch.zeros((m + n_holes, m + n_holes), dtype=dt, device=device)
+        mat[:m, :m] = H
+        inner = torch.nonzero(owner_t > 0).flatten()
+        mat[inner, m + owner_t[inner] - 1] = -1.0
+        for i in range(1, n_holes + 1):
+            mat[m + i - 1, :m] = D[owner_t == i].sum(dim=0)
+
+        # eq. (2): outer collocation points -> arc-length position on the circle
+        outer = owner == 0
+        lens = np.linalg.norm(b[outer] - a[outer], axis=1)
+        theta = 2.0 * np.pi * (np.cumsum(lens) - 0.5 * lens) / lens.sum()
+        rhs = torch.zeros((m + n_holes, 2), dtype=dt, device=device)
+        rhs[torch.tensor(np.nonzero(outer)[0], device=device)] = torch.tensor(
+            np.stack([np.cos(theta), np.sin(theta)], axis=1), dtype=dt, device=device)
+
+        sol = torch.linalg.solve(mat, rhs)
+        self.C = sol[:m]                                                 # [M, 2] for (u, v)
+        self._puncts = sol[m:].cpu().numpy()
+        self._n_boundaries = len(loops)
+        self._n_nodes = int(sum(len(l) for l in loops))
+        self._cache = (None, None, None)
+
+    def _influence(self, P):
+        """H_j(P) = ∫_panel ln‖P − x‖ ds and its gradient, for points P [K, 2]."""
+        torch = self._torch
+        d = P[:, None, :] - self.A[None, :, :]                           # [K, M, 2]
+        x0 = (d * self.t).sum(dim=2)                                     # along the panel
+        y0 = (d * self.n).sum(dim=2)                                     # off the panel (left +)
+        L = self.L[None, :]
+        u1, u2 = -x0, L - x0
+        r1, r2 = u1 * u1 + y0 * y0, u2 * u2 + y0 * y0
+        # angle subtended by the panel at P (signed with y0)
+        S = torch.atan2(y0 * L, y0 * y0 - x0 * (L - x0))
+        H = 0.5 * (torch.xlogy(u2, r2) - torch.xlogy(u1, r1)) - L + y0 * S
+        dH_dx0 = -0.5 * (torch.log(r2) - torch.log(r1))
+        G = dH_dx0[..., None] * self.t + S[..., None] * self.n          # [K, M, 2]
+        return H, G
+
+    def _eval(self, x, y):
+        if self._cache[0] != (x, y):
+            P = self._torch.tensor([[x, y]], dtype=self.C.dtype, device=self.C.device)
+            H, G = self._influence(P)
+            q = (H @ self.C)[0]
+            J = self._torch.einsum('kmd,mc->kcd', G, self.C)[0]
+            self._cache = ((x, y), q.cpu().numpy(), J.cpu().numpy())
+        return self._cache[1], self._cache[2]
+
+    def map(self, x, y):
+        return self._eval(float(x), float(y))[0]
+
+    def jacob(self, x, y):
+        return self._eval(float(x), float(y))[1]
+
+    def puncts(self):
+        return self._puncts if len(self._puncts) else None
+
+    def boundaries_amount(self):
+        return self._n_boundaries
+
+    def nodes_amount(self):
+        return self._n_nodes
+

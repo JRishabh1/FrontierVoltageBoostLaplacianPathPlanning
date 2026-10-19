@@ -136,3 +136,61 @@ class KoditschekRimonNF(BaseAlgorithm):
         rgb[sy, sx] = [0, 255, 0]
         rgb[ey, ex] = [255, 0, 0]
         Image.fromarray(rgb, mode='RGB').save('navigation_function_result.png')
+
+
+class KoditschekRimonNFGPU(KoditschekRimonNF):
+    """GPU variant of :class:`KoditschekRimonNF` (PyTorch; CUDA when available).
+
+    Same phi (krf.m) and the same descent — only where the field is computed
+    changes. The per-obstacle Euclidean distances, which dominate the CPU
+    version's cost (one SciPy distance transform per obstacle), are computed
+    on the device as exact nearest-cell searches against each obstacle's
+    surface cells, and phi is assembled there in float64. Component labelling
+    and the descent stay on the CPU, as in the repo's other GPU variants.
+    Not upstream code; results match the CPU version to rounding.
+    """
+
+    def _krf(self, grid, end):
+        import torch
+        device = _common.torch_device()
+        ndim = grid.ndim
+        free = grid == 0
+        unit = self.WORLD_SIZE / max(grid.shape)
+
+        padded = np.pad(~free, 1, constant_values=True)
+        labels, n_obs = ndimage.label(padded, structure=ndimage.generate_binary_structure(ndim, ndim))
+        k = self.k if self.k > 0 else n_obs + 1
+        self.k_used = k
+
+        # Query points: every grid cell, in padded index coordinates.
+        cells = torch.from_numpy(np.indices(grid.shape).reshape(ndim, -1).T + 1.0).to(device)
+        cross = ndimage.generate_binary_structure(ndim, 1)
+        log_b = torch.zeros(cells.shape[0], dtype=torch.float64, device=device)
+        for lab in range(1, n_obs + 1):
+            comp = labels == lab
+            surface = comp & ~ndimage.binary_erosion(comp, structure=cross)
+            pts = torch.from_numpy(np.argwhere(surface).astype(np.float64)).to(device)
+            dist = self._nearest(cells, pts)
+            log_b += torch.log(torch.clamp(dist - 0.5, min=0.0) * unit)
+
+        end_g = torch.tensor([float(c) + 1.0 for c in reversed(end)], dtype=torch.float64, device=device)
+        gd = (((cells - end_g) * unit) ** 2).sum(dim=1)
+        log_gd = torch.log(gd)
+        phi = torch.exp(log_gd - torch.logaddexp(k * log_gd, log_b) / k)
+        phi = phi.reshape(grid.shape).cpu().numpy()
+        phi[tuple(reversed(end))] = 0.0
+        phi[~free] = 1.0
+        return phi
+
+    @staticmethod
+    def _nearest(cells, pts, budget=2 ** 24):
+        """Exact distance from each cell to its nearest point in ``pts``, in
+        chunks of at most ``budget`` pairs."""
+        import torch
+        out = torch.empty(cells.shape[0], dtype=torch.float64, device=cells.device)
+        step = max(1, budget // max(1, pts.shape[0]))
+        for i in range(0, cells.shape[0], step):
+            diff = cells[i:i + step, None, :] - pts[None, :, :]
+            out[i:i + step] = torch.sqrt((diff * diff).sum(dim=2).min(dim=1).values)
+        return out
+
