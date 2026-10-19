@@ -79,6 +79,7 @@ class AlgorithmSpec:
     class_name: str
     params: list = field(default_factory=list)   # list[ParamSpec]
     external: "str | None" = None   # third_party/setup_external.py component it needs
+    gpu: bool = False     # always runs on PyTorch (CUDA when available)
 
     def supports_dims(self, n: int) -> bool:
         return self.dims is None or n in self.dims
@@ -396,6 +397,53 @@ REGISTRY += [
     ),
 ]
 
+
+# ---------------------------------------------------------------------------
+# GPU variants (PyTorch; CUDA when available, CPU-PyTorch otherwise) — our
+# implementations for testing, labelled separately from the upstream planners.
+# ---------------------------------------------------------------------------
+
+def _spec(algo_id: str) -> AlgorithmSpec:
+    return next(s for s in REGISTRY if s.id == algo_id)
+
+
+REGISTRY += [
+    AlgorithmSpec(
+        id='eikonal_gpu',
+        label='Eikonal iterative solver [GPU · our implementation, not FMM]',
+        dims=None,   # any dimensionality
+        module_file=os.path.join('Algorithms', 'External Algorithms', 'eikonalgpu.py'),
+        class_name='EikonalIterativeGPU',
+        gpu=True,
+        params=[
+            *[p for p in _spec('fast_marching').params
+              if p.name in ('clearance_saturation', 'obstacle_speed')],
+            ParamSpec('tolerance', 'Convergence tolerance', 'float', 1e-9, min=0.0,
+                      help='Stop when no arrival time changes by more than this.'),
+            ParamSpec('max_sweeps', 'Max sweeps (0 = auto)', 'int', 0, min=0,
+                      help='Upper bound on parallel update sweeps; 0 = number of cells.'),
+            *_descent_params(),
+        ],
+    ),
+    AlgorithmSpec(
+        id='navigation_function_gpu',
+        label='Koditschek–Rimon Navigation Function [GPU · same φ as nfsim port]',
+        dims=None,
+        module_file=os.path.join('Algorithms', 'External Algorithms', 'navigationfunction.py'),
+        class_name='KoditschekRimonNFGPU',
+        gpu=True,
+        params=list(_spec('navigation_function').params),
+    ),
+    AlgorithmSpec(
+        id='harmonic_map_gpu',
+        label='Harmonic Map Navigation [GPU · panel map from paper, not hntf2d]',
+        dims=[2],
+        module_file=os.path.join('Algorithms', 'External Algorithms', 'harmonicmap2d.py'),
+        class_name='HarmonicMapNavigation2DGPU',
+        gpu=True,
+        params=list(_spec('harmonic_map').params),
+    ),
+]
 
 def get_spec(algo_id: str) -> AlgorithmSpec:
     for spec in REGISTRY:

@@ -6,6 +6,7 @@ Fetch and build the external comparison planners.
     python third_party/setup_external.py --force      # re-fetch and rebuild
     python third_party/setup_external.py --check      # report what is available
     python third_party/setup_external.py --selftest   # solve a small map with each planner
+    python third_party/setup_external.py --gputest    # GPU variants vs their CPU counterparts
 
 Upstream sources are checked out at pinned commits into ``third_party/src/``
 and the compiled extension modules land in ``third_party/build/``. Both
@@ -260,6 +261,76 @@ def selftest() -> bool:
     return ok
 
 
+def gputest() -> bool:
+    """Check the GPU variants on this machine: report the device, then compare
+    each against its CPU counterpart on small maps (and time both)."""
+    import time
+    import numpy as np
+    root = os.path.dirname(HERE)
+    sys.path.insert(0, root)
+    try:
+        import torch
+    except ImportError:
+        print('PyTorch is not installed: pip install torch (CUDA build for NVIDIA GPUs)')
+        return False
+    from benchmark_app.registry import get_spec
+    from map_generation import Map2D, Map3D
+
+    cuda = torch.cuda.is_available()
+    print(f'PyTorch {torch.__version__} — device: '
+          + (f'cuda ({torch.cuda.get_device_name(0)})' if cuda else
+             'cpu (no CUDA GPU visible: the GPU variants run on CPU-PyTorch)'))
+    if cuda:   # pay CUDA initialisation once, outside the timings
+        torch.zeros(1, device='cuda').sum().item()
+
+    grid2 = np.zeros((96, 96), dtype=np.uint8)
+    for x0, y0, size in ((10, 10, 14), (40, 30, 18), (70, 60, 16), (20, 60, 12), (60, 10, 10)):
+        grid2[y0:y0 + size, x0:x0 + size] = 1
+    grid3 = np.zeros((32, 32, 32), dtype=np.uint8)
+    grid3[8:24, 10:22, 8:24] = 1
+    maps = {2: Map2D(grid2, (3, 92), (92, 3)), 3: Map3D(grid3, (2, 2, 2), (29, 29, 29))}
+
+    def run(algo_id, m, **params):
+        algo = get_spec(algo_id).build(m, params)
+        t0 = time.perf_counter()
+        path = algo.solve()
+        if cuda:
+            torch.cuda.synchronize()
+        return algo, path, time.perf_counter() - t0
+
+    ok = True
+    checks = [('navigation_function', 'navigation_function_gpu', (2, 3), {}, {}),
+              ('fast_marching', 'eikonal_gpu', (2, 3), {'high_accuracy': False}, {}),
+              ('harmonic_map', 'harmonic_map_gpu', (2,), {}, {})]
+    for cpu_id, gpu_id, dims, cpu_params, gpu_params in checks:
+        if not is_ready('hntf2d') and cpu_id == 'harmonic_map' or \
+                not is_ready('fmm') and cpu_id == 'fast_marching':
+            print(f'{gpu_id:24s} skipped (run setup first for the CPU reference)')
+            continue
+        for d in dims:
+            m = maps[d]
+            ca, cp, ct = run(cpu_id, m, **cpu_params)
+            ga, gp, gt = run(gpu_id, m, **gpu_params)
+            if gpu_id == 'navigation_function_gpu':
+                diff = float(np.max(np.abs(ca._phi - ga._phi)[m.grid == 0]))
+                good = diff < 1e-9
+                what = f'max |phi_cpu - phi_gpu| = {diff:.1e}'
+            elif gpu_id == 'eikonal_gpu':
+                free = m.grid == 0
+                diff = float(np.max(np.abs(ca._arrival - ga._arrival)[free] / np.maximum(ca._arrival[free], 1)))
+                good = diff < 1e-6
+                what = f'max rel |T_fmm1 - T_gpu| = {diff:.1e} (vs first-order FMM)'
+            else:
+                pts = [(float(x), float(y)) for x, y in ((5, 50), (30, 80), (60, 45), (85, 90), (50, 5))]
+                diff = max(float(np.linalg.norm(np.asarray(ca.hmap.map(*p)) - ga.hmap.map(*p))) for p in pts)
+                good = diff < 1e-4
+                what = f'max |q_hntf2d - q_gpu| = {diff:.1e}'
+            print(f'{gpu_id:24s} {d}D  {"OK " if good else "-- "} {what}; solved cpu={cp is not None} '
+                  f'gpu={gp is not None}; time cpu {ct:.3f}s gpu {gt:.3f}s')
+            ok &= good
+    return ok
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument('components', nargs='*', choices=[[]] + list(COMPONENTS),
@@ -268,6 +339,8 @@ def main():
     parser.add_argument('--check', action='store_true', help='only report status')
     parser.add_argument('--selftest', action='store_true',
                         help='solve a small map with every external planner')
+    parser.add_argument('--gputest', action='store_true',
+                        help='check the GPU variants against their CPU counterparts')
     args = parser.parse_args()
 
     if args.check:
@@ -276,6 +349,8 @@ def main():
         return
     if args.selftest:
         sys.exit(0 if selftest() else 'selftest failed')
+    if args.gputest:
+        sys.exit(0 if gputest() else 'gputest failed')
 
     wanted = args.components or list(COMPONENTS)
     failures = []
