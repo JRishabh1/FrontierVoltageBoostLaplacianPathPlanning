@@ -12,12 +12,24 @@ mkdir -p benchmarks/results
 exec > >(tee -a benchmarks/results/console.log) 2>&1
 
 PY=${PYTHON:-python3}
-if [ ! -x .venv/bin/python ]; then
+# (Re)create .venv unless it is a working environment with pip.
+if ! .venv/bin/python -m pip --version >/dev/null 2>&1; then
+    rm -rf .venv
     echo "creating .venv with $($PY --version)"
-    $PY -m venv .venv || { echo "python venv failed (on Ubuntu: apt install python3-venv)"; exit 1; }
+    if [ -z "${NO_ENSUREPIP:-}" ] && $PY -m venv .venv; then
+        :
+    else
+        # Ubuntu without python3-venv: no ensurepip. Create the env without
+        # pip and install pip with PyPA's official bootstrap script instead.
+        echo "venv module unavailable; creating .venv without pip and bootstrapping pip (get-pip.py)"
+        rm -rf .venv
+        $PY -m venv --without-pip .venv
+        .venv/bin/python -c "import urllib.request; urllib.request.urlretrieve('https://bootstrap.pypa.io/get-pip.py', '.venv/get-pip.py')"
+        .venv/bin/python .venv/get-pip.py -q
+    fi
 fi
-.venv/bin/pip install -q --upgrade pip
-.venv/bin/pip install -q -e . numpy scipy pillow flask rtree pybind11 pyyaml torch
+.venv/bin/python -m pip install -q --upgrade pip
+.venv/bin/python -m pip install -q -e . numpy scipy pillow flask rtree pybind11 pyyaml torch
 .venv/bin/python third_party/setup_external.py
 .venv/bin/python benchmarks/run_suite.py --check
 .venv/bin/python benchmarks/run_suite.py "$@"
