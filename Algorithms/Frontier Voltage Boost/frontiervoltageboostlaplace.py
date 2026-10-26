@@ -6,13 +6,18 @@ from Algorithms import Algorithm2D
 class FrontierVoltageBoostLaplace(Algorithm2D):
 
     def __init__(self, map, n_l: int, epsilon: float, step_size: float = 1.0,
-                 bilinear_interpolation: bool = True, use_gpu: bool = False):
+                 bilinear_interpolation: bool = True, use_gpu: bool = False,
+                 fused_cuda: bool = True):
         super().__init__(map)
+        if n_l < 1 or epsilon < 0 or step_size <= 0:
+            raise ValueError('n_l >= 1, epsilon >= 0 and step_size > 0 required')
         self.n_l = n_l
         self.epsilon = epsilon
         self.step_size = step_size
         self.bilinear_interpolation = bilinear_interpolation
         self.use_gpu = use_gpu   # PyTorch wavefront solve (CUDA when available)
+        self.fused_cuda = fused_cuda
+        self.backend_used = 'numpy'
         self._path = None
         self._phi = None
 
@@ -77,6 +82,12 @@ class FrontierVoltageBoostLaplace(Algorithm2D):
         import torch.nn.functional as tF
 
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        from Algorithms.gpu_ops import cupy_for, fvb_cuda
+        if self.fused_cuda and cupy_for(device) is not None:
+            self.backend_used = 'cupy-fused-float64'
+            masks = self._build_masks(grid, end[1], end[0])
+            return fvb_cuda(grid, start, end, *masks, self.n_l, self.epsilon)
+        self.backend_used = f'torch-{device}-float64'
         sx, sy = start
         ex, ey = end
 

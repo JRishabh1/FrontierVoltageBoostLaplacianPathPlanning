@@ -445,6 +445,29 @@ REGISTRY += [
     ),
 ]
 
+# Implementation controls are explicit and stored with every configuration.
+REGISTRY.append(AlgorithmSpec(
+    id='rrt_batch_gpu', label='Batched RRT [GPU · parallel expansion, not RRT*]',
+    dims=None, module_file=os.path.join('Algorithms', 'Baseline Algorithms', 'rrt_batch.py'),
+    class_name='BatchedRRTGPU', gpu=True,
+    params=[p for p in _spec('rrt').params if p.name != 'use_gpu'] + [
+        ParamSpec('batch_size', 'Expansion batch size', 'int', 128, min=1),
+    ],
+))
+_spec('fvb_laplace').params.append(
+    ParamSpec('fused_cuda', 'Fused CUDA stencil (requires CuPy)', 'bool', True))
+_spec('astar').params.append(
+    ParamSpec('allow_corner_cutting', 'Allow diagonal corner cutting', 'bool', False))
+_spec('eikonal_gpu').params.extend([
+    ParamSpec('fused_cuda', 'Fused CUDA stencil (requires CuPy)', 'bool', True),
+    ParamSpec('single_precision', 'Float32 field (reduced precision)', 'bool', False),
+    ParamSpec('check_every', 'Convergence check interval', 'int', 32, min=1),
+])
+_spec('harmonic_map_gpu').params.extend([
+    ParamSpec('assembly_chunk_size', 'Panel assembly row block', 'int', 128, min=1),
+    ParamSpec('cpu_evaluation', 'Evaluate single-point controller on CPU', 'bool', True),
+])
+
 def get_spec(algo_id: str) -> AlgorithmSpec:
     for spec in REGISTRY:
         if spec.id == algo_id:

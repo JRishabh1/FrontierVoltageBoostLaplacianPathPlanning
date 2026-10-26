@@ -71,9 +71,15 @@ path descent / the controller loop stay on the CPU.
 
 | Registry id | Runs on the GPU | Relation to the CPU planner (verified) |
 |---|---|---|
-| `navigation_function_gpu` | per-obstacle distances (exact nearest-cell search) and the φ assembly | same φ as `navigation_function` to ~1e-15; identical paths on all maps tested (2D/3D/4D) |
+| `navigation_function_gpu` | exact CUDA EDT (CuPy, 2D/3D) and φ assembly; exact SciPy EDT fallback | same grid-adapted φ as `navigation_function`; tested against the CPU field |
 | `eikonal_gpu` | a parallel iterative eikonal solver (first-order Godunov updates, Jacobi sweeps — the Fast Iterative Method's scheme) | **not FMM**: FMM's priority queue does not parallelise. Equals the upstream library run with `high_accuracy=False` to ~1e-13; the default (second-order) `fast_marching` is ~3× more accurate against exact distances |
-| `harmonic_map_gpu` | the harmonic map: panel method written from the paper's §3 equations, dense solve in float64 | map within ~1e-5 of hntf2d's (float32) on our maps; controller identical. Paths that graze walls can still differ because of the precision difference |
+| `harmonic_map_gpu` | chunked panel assembly and dense solve in float64; single-point evaluation on CPU by default | same panel equations; hntf2d uses float32. Paths that graze walls can differ because of precision |
+
+The new [best-effort tuning runner](../benchmarks/GPU_BENCHMARKS.md) adds
+optional fused 2D Eikonal/FVB kernels and equal candidate/map caps for parameter
+search on training maps. It reports held-out success rates, actual backends,
+whole-segment validity and fixed-spacing metrics. It does not claim the
+parameter search is exhaustive or that first-order iterative Eikonal is FMM.
 
 No GPU version of cust_fields: it evaluates one point at a time in Python
 (nothing to parallelise), and porting its unlicensed code would copy it into

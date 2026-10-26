@@ -1,4 +1,5 @@
 import heapq
+import itertools
 import math
 import time
 import numpy as np
@@ -25,9 +26,10 @@ class AStarAlgorithm(BaseAlgorithm):
         ],
     }
 
-    def __init__(self, map, timeout: float = 30.0):
+    def __init__(self, map, timeout: float = 30.0, allow_corner_cutting: bool = False):
         super().__init__(map)
         self.timeout = timeout
+        self.allow_corner_cutting = allow_corner_cutting
         self._path = None
 
     # ------------------------------------------------------------------
@@ -36,7 +38,7 @@ class AStarAlgorithm(BaseAlgorithm):
 
     def solve(self, visualize=False):
         self._path = self._astar(
-            self.map.grid, self.map.start, self.map.end, self.timeout
+            self.map.grid, self.map.start, self.map.end, self.timeout, self.allow_corner_cutting
         )
         if visualize:
             self._visualize()
@@ -57,7 +59,8 @@ class AStarAlgorithm(BaseAlgorithm):
     # ------------------------------------------------------------------
 
     @classmethod
-    def _astar(cls, grid: np.ndarray, start: tuple, end: tuple, timeout: float):
+    def _astar(cls, grid: np.ndarray, start: tuple, end: tuple, timeout: float,
+               allow_corner_cutting=False):
         ndim = grid.ndim
         if ndim not in cls._MOVES:
             raise ValueError(f"Unsupported grid dimensionality: {ndim}")
@@ -90,6 +93,12 @@ class AStarAlgorithm(BaseAlgorithm):
             for *deltas, w in moves:
                 nb = tuple(c + d for c, d in zip(cur, deltas))
                 if all(0 <= nb[i] < grid.shape[i] for i in range(ndim)) and grid[nb] == 0:
+                    if not allow_corner_cutting:
+                        # Every cell touched at an edge/corner must be free.
+                        choices = [(0, d) if d else (0,) for d in deltas]
+                        if any(grid[tuple(c + d for c, d in zip(cur, offset))] != 0
+                               for offset in itertools.product(*choices)):
+                            continue
                     ng = cost + w
                     if ng < g.get(nb, float('inf')):
                         g[nb] = ng
