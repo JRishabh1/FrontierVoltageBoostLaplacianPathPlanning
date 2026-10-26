@@ -36,6 +36,7 @@ def describe_error(exc: BaseException, limit: int = 5) -> str:
 def _worker(conn, algo_id: str, params: dict, grid: np.ndarray, start: tuple, end: tuple):
     """Child-process entry: build map + algorithm, solve, send result back."""
     try:
+        setup_start = time.perf_counter()
         from benchmark_app.registry import get_spec
         from map_generation import Map, Map2D, Map3D
 
@@ -49,6 +50,7 @@ def _worker(conn, algo_id: str, params: dict, grid: np.ndarray, start: tuple, en
 
         spec = get_spec(algo_id)
         algo = spec.build(map_obj, params)
+        device = 'cpu'
 
         # Importing PyTorch in this fresh subprocess costs ~0.5s+ and the first
         # tensor/conv op pays one-time dispatcher + algorithm-selection setup —
@@ -60,12 +62,20 @@ def _worker(conn, algo_id: str, params: dict, grid: np.ndarray, start: tuple, en
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
             if device == 'cuda':
                 torch.cuda.init()
+                if algo_id in ('fvb_laplace', 'eikonal_gpu') and (params or {}).get('fused_cuda', True):
+                    from Algorithms.gpu_ops import warmup_cuda_kernels
+                    warmup_cuda_kernels()
             warm = torch.zeros((1, 1, 4, 4), dtype=torch.double, device=device)
             tF.conv2d(warm, torch.zeros((1, 1, 3, 3), dtype=torch.double, device=device))
             (warm + 1).sum().item()   # forces execution (and a CUDA sync when on GPU)
+            if device == 'cuda':
+                torch.cuda.synchronize()
 
+        setup_s = time.perf_counter() - setup_start
         t0 = time.perf_counter()
         path = algo.solve()
+        if device == 'cuda':
+            torch.cuda.synchronize()
         elapsed = time.perf_counter() - t0
 
         if path is not None:
@@ -75,7 +85,10 @@ def _worker(conn, algo_id: str, params: dict, grid: np.ndarray, start: tuple, en
 
         # Planners may say why they found no path (external wrappers do).
         reason = getattr(algo, 'failure_reason', None) if path is None else None
-        conn.send({'ok': True, 'path': path, 'time_s': elapsed, 'reason': reason})
+        conn.send({'ok': True, 'path': path, 'time_s': elapsed, 'reason': reason,
+                   'device': device, 'backend': getattr(algo, 'backend_used', None),
+                   'setup_s': setup_s, 'converged': getattr(algo, 'converged', None),
+                   'sweeps_used': getattr(algo, 'sweeps_used', None)})
     except Exception as exc:
         conn.send({'ok': False, 'error': describe_error(exc, limit=5)})
     finally:
@@ -101,29 +114,44 @@ def solve_with_timeout(algo_id: str, params: dict, grid: np.ndarray,
     result = None
     cancelled = False
     deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        if cancel_event is not None and cancel_event.is_set():
-            cancelled = True
-            break
-        if parent_conn.poll(min(0.2, max(0.0, deadline - time.monotonic()))):
-            try:
-                result = parent_conn.recv()
-            except EOFError:
-                result = None
-            break
+    def stop_child():
+        if proc.is_alive():
+            proc.terminate()
+            proc.join(timeout=2)
+        if proc.is_alive():
+            proc.kill()
+        proc.join()
+
+    try:
+        while time.monotonic() < deadline:
+            if cancel_event is not None and cancel_event.is_set():
+                cancelled = True
+                break
+            if parent_conn.poll(min(0.2, max(0.0, deadline - time.monotonic()))):
+                try:
+                    result = parent_conn.recv()
+                except EOFError:
+                    result = None
+                break
+            if not proc.is_alive():
+                break
+    except BaseException:
+        stop_child()
+        parent_conn.close()
+        raise
 
     if cancelled:
-        proc.terminate()
-        proc.join()
+        stop_child()
         parent_conn.close()
         return {'solved': False, 'path': None, 'time_s': None,
                 'error': 'cancelled', 'cancelled': True}
 
-    proc.join(timeout=5)
+    # Once the watchdog deadline is reached, do not give a stuck solver an
+    # additional five seconds to run before terminating it.
+    proc.join(timeout=0 if result is None else 5)
     timed_out = proc.is_alive()
     if timed_out:
-        proc.terminate()
-        proc.join()
+        stop_child()
 
     parent_conn.close()
 
@@ -143,6 +171,11 @@ def solve_with_timeout(algo_id: str, params: dict, grid: np.ndarray,
         'solved': path is not None and len(path) > 0,
         'path': path,
         'time_s': result['time_s'],
+        'device': result.get('device'),
+        'backend': result.get('backend'),
+        'setup_s': result.get('setup_s'),
+        'converged': result.get('converged'),
+        'sweeps_used': result.get('sweeps_used'),
         'error': None if path else (f"no path: {result['reason']}" if result.get('reason')
                                     else 'algorithm returned no path'),
     }

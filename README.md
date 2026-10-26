@@ -2,6 +2,20 @@
 
 This repository contains implementations for Frontier Voltage Boost Laplacian Path Planning, along with the incremental algorithms that led to it.
 
+**GPU tuning and overnight comparisons:** see
+[benchmarks/GPU_BENCHMARKS.md](benchmarks/GPU_BENCHMARKS.md) for fused CUDA
+stencils, exact GPU distance transforms, batched RRT, and a resumable parameter
+search with held-out evaluation, full-segment validation, and fixed-spacing
+smoothness metrics. From the repository root on an NVIDIA GPU machine:
+
+```bash
+bash benchmarks/start_tuning.sh --suite gpu-night-1 --hours 8
+```
+
+Run inside `tmux` to survive disconnects. The launcher validates CUDA before
+starting; rerun the same command to resume. CUDA results must be measured on
+your hardware; CPU fallback runs are not GPU performance evidence.
+
 ---
 
 ## 1. Installation

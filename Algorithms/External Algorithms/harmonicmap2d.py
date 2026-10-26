@@ -321,11 +321,18 @@ class HarmonicMapNavigation2DGPU(HarmonicMapNavigation2D):
     float32, so maps agree closely but not bit-for-bit.
     """
 
+    def __init__(self, map, assembly_chunk_size=128, cpu_evaluation=True, **kwargs):
+        self.assembly_chunk_size = assembly_chunk_size
+        self.cpu_evaluation = cpu_evaluation
+        super().__init__(map, **kwargs)
+
     def _load_backend(self):
         self._device = _common.torch_device()
+        self.backend_used = f'torch-{self._device}-float64+cpu-controller'
 
     def _build_map(self, domain):
-        return PanelHarmonicMapTorch(self._panel_loops(domain), self._device)
+        return PanelHarmonicMapTorch(self._panel_loops(domain), self._device,
+                                    self.assembly_chunk_size, self.cpu_evaluation)
 
 
 class PanelHarmonicMapTorch:
@@ -346,15 +353,24 @@ class PanelHarmonicMapTorch:
     ``map``, ``jacob`` (rows u, v; columns x, y) and ``puncts``.
     """
 
-    def __init__(self, loops, device='cpu'):
+    def __init__(self, loops, device='cpu', chunk_size=128, cpu_evaluation=True):
         import torch
+        if chunk_size < 1:
+            raise ValueError('chunk_size must be positive')
         self._torch = torch
+        self.cpu_evaluation = cpu_evaluation
         dt = torch.float64
         a = np.vstack([l[:-1] for l in loops])
         b = np.vstack([l[1:] for l in loops])
         owner = np.concatenate([np.full(len(l) - 1, i) for i, l in enumerate(loops)])
         n_holes = len(loops) - 1
         m = len(a)
+        if str(device).startswith('cuda'):
+            available, _ = torch.cuda.mem_get_info()
+            estimate = 8 * (3 * (m + n_holes)**2 + 16 * min(chunk_size, m) * m)
+            if estimate > 0.7 * available:
+                raise MemoryError(f'{m} panels need about {estimate / 2**30:.1f} GiB; '
+                                  'increase panel_length or lower assembly_chunk_size')
 
         self.A = torch.tensor(a, dtype=dt, device=device)
         ab = torch.tensor(b - a, dtype=dt, device=device)
@@ -363,19 +379,24 @@ class PanelHarmonicMapTorch:
         self.n = torch.stack([-self.t[:, 1], self.t[:, 0]], dim=1)      # left normal (into the domain)
         mid = self.A + 0.5 * ab
 
-        H, G = self._influence(mid)
-        # ∂H_j/∂n at collocation point k; on its own panel the domain-side
-        # limit of the normal derivative of ∫ ln r ds is +π.
-        D = torch.einsum('kmd,kd->km', G, self.n)
-        D.fill_diagonal_(np.pi)
-
         owner_t = torch.tensor(owner, device=device)
         mat = torch.zeros((m + n_holes, m + n_holes), dtype=dt, device=device)
-        mat[:m, :m] = H
+        # Assemble bounded row blocks instead of materialising several M×M×2
+        # arrays. The dense system and LU factorisation are still O(M²)/O(M³).
+        for begin in range(0, m, chunk_size):
+            stop = min(begin + chunk_size, m)
+            H, G = self._influence(mid[begin:stop])
+            mat[begin:stop, :m] = H
+            D = torch.einsum('kmd,kd->km', G, self.n[begin:stop])
+            rows = torch.arange(stop - begin, device=device)
+            D[rows, rows + begin] = np.pi
+            for hole in range(1, n_holes + 1):
+                # Static CPU mask avoids a device sync in each loop iteration.
+                mask = torch.as_tensor(owner[begin:stop] == hole, device=device)
+                mat[m + hole - 1, :m] += (D * mask[:, None]).sum(dim=0)
+            del H, G, D
         inner = torch.nonzero(owner_t > 0).flatten()
         mat[inner, m + owner_t[inner] - 1] = -1.0
-        for i in range(1, n_holes + 1):
-            mat[m + i - 1, :m] = D[owner_t == i].sum(dim=0)
 
         # eq. (2): outer collocation points -> arc-length position on the circle
         outer = owner == 0
@@ -387,6 +408,11 @@ class PanelHarmonicMapTorch:
 
         sol = torch.linalg.solve(mat, rhs)
         self.C = sol[:m]                                                 # [M, 2] for (u, v)
+        if self.cpu_evaluation:
+            # One transfer. A single trajectory queries one point per step;
+            # launch + synchronization per query costs more than this O(M) CPU work.
+            self._cpu = tuple(t.cpu().numpy() for t in
+                              (self.A, self.L, self.t, self.n, self.C))
         self._puncts = sol[m:].cpu().numpy()
         self._n_boundaries = len(loops)
         self._n_nodes = int(sum(len(l) for l in loops))
@@ -410,6 +436,19 @@ class PanelHarmonicMapTorch:
 
     def _eval(self, x, y):
         if self._cache[0] != (x, y):
+            if self.cpu_evaluation:
+                from scipy.special import xlogy
+                A, L, tangent, normal, C = self._cpu
+                d = np.array([x, y]) - A
+                x0 = (d * tangent).sum(axis=1)
+                y0 = (d * normal).sum(axis=1)
+                u1, u2 = -x0, L - x0
+                r1, r2 = u1*u1 + y0*y0, u2*u2 + y0*y0
+                S = np.arctan2(y0 * L, y0*y0 - x0*(L-x0))
+                H = 0.5 * (xlogy(u2, r2) - xlogy(u1, r1)) - L + y0*S
+                G = (-0.5 * (np.log(r2) - np.log(r1)))[:, None] * tangent + S[:, None] * normal
+                self._cache = ((x, y), H @ C, C.T @ G)
+                return self._cache[1], self._cache[2]
             P = self._torch.tensor([[x, y]], dtype=self.C.dtype, device=self.C.device)
             H, G = self._influence(P)
             q = (H @ self.C)[0]

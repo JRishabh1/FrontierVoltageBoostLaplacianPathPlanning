@@ -16,6 +16,7 @@ start_end_points.csv
 # IDE / tool directories
 .qodo/
 .venv/
+.pytest_cache/
 .env
 
 # Benchmark suite output (benchmarks/run_suite.py)

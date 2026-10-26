@@ -142,16 +142,16 @@ class KoditschekRimonNFGPU(KoditschekRimonNF):
     """GPU variant of :class:`KoditschekRimonNF` (PyTorch; CUDA when available).
 
     Same phi (krf.m) and the same descent — only where the field is computed
-    changes. The per-obstacle Euclidean distances, which dominate the CPU
-    version's cost (one SciPy distance transform per obstacle), are computed
-    on the device as exact nearest-cell searches against each obstacle's
-    surface cells, and phi is assembled there in float64. Component labelling
+    changes. Per-obstacle distances use CuPy's exact CUDA EDT (2D/3D), or
+    SciPy's linear-time EDT when CuPy is absent. This avoids the previous
+    quadratic all-pairs surface search. Phi is assembled in float64. Labelling
     and the descent stay on the CPU, as in the repo's other GPU variants.
     Not upstream code; results match the CPU version to rounding.
     """
 
     def _krf(self, grid, end):
         import torch
+        from Algorithms.gpu_ops import distance_edt
         device = _common.torch_device()
         ndim = grid.ndim
         free = grid == 0
@@ -164,14 +164,13 @@ class KoditschekRimonNFGPU(KoditschekRimonNF):
 
         # Query points: every grid cell, in padded index coordinates.
         cells = torch.from_numpy(np.indices(grid.shape).reshape(ndim, -1).T + 1.0).to(device)
-        cross = ndimage.generate_binary_structure(ndim, 1)
+        inner = tuple(slice(1, -1) for _ in range(ndim))
         log_b = torch.zeros(cells.shape[0], dtype=torch.float64, device=device)
         for lab in range(1, n_obs + 1):
-            comp = labels == lab
-            surface = comp & ~ndimage.binary_erosion(comp, structure=cross)
-            pts = torch.from_numpy(np.argwhere(surface).astype(np.float64)).to(device)
-            dist = self._nearest(cells, pts)
+            dist, self.distance_backend = distance_edt(labels != lab, device)
+            dist = dist[inner].reshape(-1)
             log_b += torch.log(torch.clamp(dist - 0.5, min=0.0) * unit)
+        self.backend_used = f'torch-{device}+{self.distance_backend}'
 
         end_g = torch.tensor([float(c) + 1.0 for c in reversed(end)], dtype=torch.float64, device=device)
         gd = (((cells - end_g) * unit) ** 2).sum(dim=1)
@@ -181,16 +180,4 @@ class KoditschekRimonNFGPU(KoditschekRimonNF):
         phi[tuple(reversed(end))] = 0.0
         phi[~free] = 1.0
         return phi
-
-    @staticmethod
-    def _nearest(cells, pts, budget=2 ** 24):
-        """Exact distance from each cell to its nearest point in ``pts``, in
-        chunks of at most ``budget`` pairs."""
-        import torch
-        out = torch.empty(cells.shape[0], dtype=torch.float64, device=cells.device)
-        step = max(1, budget // max(1, pts.shape[0]))
-        for i in range(0, cells.shape[0], step):
-            diff = cells[i:i + step, None, :] - pts[None, :, :]
-            out[i:i + step] = torch.sqrt((diff * diff).sum(dim=2).min(dim=1).values)
-        return out
 

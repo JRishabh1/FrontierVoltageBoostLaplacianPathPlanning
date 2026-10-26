@@ -5,7 +5,6 @@ import os
 import sys
 
 import numpy as np
-from scipy.ndimage import distance_transform_edt
 
 from Algorithms.algorithm import BaseAlgorithm
 
@@ -53,8 +52,11 @@ class EikonalIterativeGPU(BaseAlgorithm):
     def __init__(self, map, clearance_saturation: float = 0.0, obstacle_speed: float = 1e-6,
                  tolerance: float = 1e-9, max_sweeps: int = 0, step_size: float = 1.0,
                  bilinear_interpolation: bool = True, max_iters: int = 20000,
-                 stall_window: int = 200):
+                 stall_window: int = 200, check_every: int = 32,
+                 single_precision: bool = False, fused_cuda: bool = True):
         super().__init__(map)
+        if check_every < 1 or max_sweeps < 0 or tolerance < 0 or obstacle_speed <= 0:
+            raise ValueError('invalid iteration, tolerance or speed parameter')
         self.clearance_saturation = clearance_saturation
         self.obstacle_speed = obstacle_speed
         self.tolerance = tolerance
@@ -63,6 +65,10 @@ class EikonalIterativeGPU(BaseAlgorithm):
         self.bilinear_interpolation = bilinear_interpolation
         self.max_iters = max_iters
         self.stall_window = stall_window
+        self.check_every = check_every
+        self.single_precision = single_precision
+        self.fused_cuda = fused_cuda
+        self.converged = False
         self._path = None
         self._arrival = None
         self.sweeps_used = None
@@ -71,6 +77,10 @@ class EikonalIterativeGPU(BaseAlgorithm):
     def solve(self, visualize=False):
         grid = self.map.grid
         self._arrival = self._arrival_times(grid, self.map.end)
+        if not self.converged:
+            self._path = None
+            self.failure_reason = f'eikonal field did not converge in {self.sweeps_used} sweeps'
+            return None
         diag = {}
         self._path = _common.descend_field(
             self._arrival, grid, self.map.start, self.map.end,
@@ -85,38 +95,51 @@ class EikonalIterativeGPU(BaseAlgorithm):
 
     def _arrival_times(self, grid, end):
         import torch
+        from Algorithms.gpu_ops import cupy_for, distance_edt, eikonal_cuda
         device = _common.torch_device()
         ndim = grid.ndim
         free = grid == 0
 
         # Speed field and boundary values: identical to FastMarchingAlgorithm.
         if self.clearance_saturation > 0:
-            speed = np.minimum(1.0, distance_transform_edt(free) / self.clearance_saturation)
+            dist, self.distance_backend = distance_edt(free, device)
+            speed = np.minimum(1.0, dist.cpu().numpy() / self.clearance_saturation)
         else:
             speed = np.ones(grid.shape)
         speed[~free] = self.obstacle_speed
         speed = np.maximum(speed, self.obstacle_speed)
 
-        T = torch.full(grid.shape, math.inf, dtype=torch.float64, device=device)
-        fixed = torch.zeros(grid.shape, dtype=torch.bool, device=device)
+        initial = np.full(grid.shape, math.inf)
+        fixed_np = np.zeros(grid.shape, dtype=bool)
         end = tuple(int(c) for c in end)
         for delta in itertools.product((-1, 0, 1), repeat=ndim):
             g_idx = tuple(reversed(tuple(c + d for c, d in zip(end, delta))))
             if all(0 <= g_idx[i] < grid.shape[i] for i in range(ndim)) and free[g_idx]:
-                T[g_idx] = math.sqrt(sum(d * d for d in delta)) / speed[g_idx]
-                fixed[g_idx] = True
+                initial[g_idx] = math.sqrt(sum(d * d for d in delta)) / speed[g_idx]
+                fixed_np[g_idx] = True
 
-        inv_speed = torch.from_numpy(1.0 / speed).to(device)
         # Each sweep advances the front by at least one cell, so the number of
         # cells bounds the sweeps needed; convergence normally stops far sooner.
         limit = self.max_sweeps or int(np.prod(grid.shape))
-        check_every = 16   # convergence test interval (each test syncs with the device)
+        if self.fused_cuda and ndim == 2 and cupy_for(device) is not None:
+            self.backend_used = 'cupy-fused-' + ('float32' if self.single_precision else 'float64')
+            field, self.sweeps_used, self.converged = eikonal_cuda(
+                initial, fixed_np, 1.0 / speed, limit, self.tolerance,
+                self.check_every, self.single_precision)
+            return field
+        dtype = torch.float32 if self.single_precision else torch.float64
+        self.backend_used = f'torch-{device}-{dtype}'
+        T = torch.as_tensor(initial, dtype=dtype, device=device)
+        fixed = torch.as_tensor(fixed_np, device=device)
+        inv_speed = torch.as_tensor(1.0 / speed, dtype=dtype, device=device)
+        self.converged = False
         for sweep in range(1, limit + 1):
             T_new = torch.where(fixed, T, torch.minimum(T, self._godunov(T, inv_speed)))
-            if sweep % check_every == 0 or sweep == limit:
+            if sweep % self.check_every == 0 or sweep == limit:
                 changed = (T_new < T - self.tolerance) | (torch.isfinite(T_new) & ~torch.isfinite(T))
                 T = T_new
                 if not bool(changed.any()):
+                    self.converged = True
                     break
             else:
                 T = T_new
@@ -132,6 +155,12 @@ class EikonalIterativeGPU(BaseAlgorithm):
         for d in range(ndim):
             P = _pad_inf(T, d)
             mins.append(torch.minimum(P.narrow(d, 0, T.shape[d]), P.narrow(d, 2, T.shape[d])))
+        if ndim == 2:
+            lo, hi = torch.minimum(*mins), torch.maximum(*mins)
+            delta = hi - lo
+            two_axis = lo + 0.5 * (delta + torch.sqrt(
+                torch.clamp(2 * inv_speed.square() - delta.square(), min=0)))
+            return torch.where(torch.isfinite(hi) & (delta < inv_speed), two_axis, lo + inv_speed)
         a, _ = torch.sort(torch.stack(mins), dim=0)          # a_0 <= a_1 <= ...
         t = a[0] + inv_speed
         s1 = a[0].clone()

@@ -148,7 +148,7 @@ class RRTAlgorithm(BaseAlgorithm):
             steps = max(1, int(math.ceil(dist / self._COLLISION_RESOLUTION)))
             t = torch.linspace(0, 1, steps + 1, dtype=torch.double, device=device).view(-1, 1)
             pts = a.view(1, -1) + (b - a).view(1, -1) * t
-            idx = pts.floor().long().flip(1)          # user order -> grid order
+            idx = (pts + 0.5).floor().long().flip(1)  # cells centred at integers
             if bool((idx < 0).any()) or bool((idx >= shape_t.view(1, -1)).any()):
                 return False
             flat = torch.zeros(idx.shape[0], dtype=torch.long, device=device)
@@ -201,7 +201,7 @@ class RRTAlgorithm(BaseAlgorithm):
     @staticmethod
     def _cell_blocked(grid, point) -> bool:
         """True if the cell containing user-order ``point`` is out of bounds or an obstacle."""
-        idx = tuple(int(math.floor(c)) for c in reversed(tuple(point)))
+        idx = tuple(int(math.floor(c + 0.5)) for c in reversed(tuple(point)))
         if any(not (0 <= idx[d] < grid.shape[d]) for d in range(grid.ndim)):
             return True
         return grid[idx] != 0

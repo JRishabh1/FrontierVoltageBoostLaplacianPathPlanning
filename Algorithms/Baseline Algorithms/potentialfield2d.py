@@ -105,9 +105,9 @@ class PotentialFieldAlgorithm(Algorithm2D):
         return u_att + u_rep
 
     def _compute_potential_torch(self, grid, goal):
-        """Same potential, elementwise math on a torch device (CUDA if present).
-        The distance transform itself stays on the CPU (SciPy)."""
+        """Same potential, with exact CUDA EDT when CuPy is installed."""
         import torch
+        from Algorithms.gpu_ops import distance_edt
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         gx, gy = goal
         rows, cols = grid.shape
@@ -117,14 +117,14 @@ class PotentialFieldAlgorithm(Algorithm2D):
         u_att = 0.5 * self.k_att * ((ys - gy) ** 2 + (xs - gx) ** 2)
 
         obstacle_np = grid == 1
-        dist = torch.from_numpy(
-            np.asarray(distance_transform_edt(~obstacle_np), dtype=np.float64)).to(device)
+        dist, self.distance_backend = distance_edt(~obstacle_np, device)
+        self.backend_used = f'torch-{device}+{self.distance_backend}'
         obstacle = torch.from_numpy(obstacle_np).to(device)
 
-        u_rep = torch.zeros_like(u_att)
         near = (dist < self.q_star) & (dist > 0)
-        u_rep[near] = 0.5 * self.k_rep * (1.0 / dist[near] - 1.0 / self.q_star) ** 2
-        u_rep[obstacle] = self.OBSTACLE_POTENTIAL
+        rep = 0.5 * self.k_rep * (dist.clamp_min(1e-30).reciprocal() - 1.0 / self.q_star) ** 2
+        u_rep = torch.where(near, rep, 0.0)
+        u_rep = torch.where(obstacle, self.OBSTACLE_POTENTIAL, u_rep)
 
         return (u_att + u_rep).cpu().numpy()
 
@@ -169,7 +169,8 @@ class PotentialFieldAlgorithm(Algorithm2D):
 
             if not (0 <= posy < potential.shape[0] and 0 <= posx < potential.shape[1]):
                 return None
-            if grid[int(posy), int(posx)] == 1:
+            yi, xi = math.floor(posy + 0.5), math.floor(posx + 0.5)
+            if yi >= grid.shape[0] or xi >= grid.shape[1] or grid[yi, xi] == 1:
                 return None   # descended into an obstacle cell
 
             path.append((posx, posy))
