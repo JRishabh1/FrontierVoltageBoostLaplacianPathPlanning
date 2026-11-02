@@ -56,6 +56,8 @@ class RRTAlgorithm(BaseAlgorithm):
     # ------------------------------------------------------------------
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._path = None
         grid = self.map.grid
         start = np.asarray(self.map.start, dtype=float)
         goal = np.asarray(self.map.end, dtype=float)
@@ -66,7 +68,7 @@ class RRTAlgorithm(BaseAlgorithm):
 
         if self._cell_blocked(grid, start) or self._cell_blocked(grid, goal):
             self._path = None
-            return None
+            return self.fail('invalid_endpoint', 'start or goal is blocked or outside the grid', stage='search')
 
         if self.use_gpu:
             self._path = self._solve_torch(grid, start, goal, ndim, sizes, rng)
@@ -117,7 +119,7 @@ class RRTAlgorithm(BaseAlgorithm):
                 return self._path
 
         self._path = None
-        return None
+        return self.fail('iteration_limit', 'RRT exhausted its sample budget before connecting to the goal', stage='search', samples=self.max_iterations, tree_nodes=count)
 
     def result(self, visualize=False):
         if visualize:
@@ -192,7 +194,7 @@ class RRTAlgorithm(BaseAlgorithm):
                     idx = parents[idx]
                 return path[::-1]
 
-        return None
+        return self.fail('iteration_limit', 'RRT exhausted its sample budget before connecting to the goal', stage='search', samples=self.max_iterations, tree_nodes=count)
 
     # ------------------------------------------------------------------
     # Collision checking

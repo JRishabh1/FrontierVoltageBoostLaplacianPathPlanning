@@ -72,6 +72,9 @@ class RRTLaplaceRandomSampling(Algorithm2D):
     # ------------------------------------------------------------------
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._descent_failures = {}
+        self._path = None
         grid = self.map.grid
         self._H, self._W = grid.shape
         sx, sy = int(self.map.start[0]), int(self.map.start[1])
@@ -82,7 +85,7 @@ class RRTLaplaceRandomSampling(Algorithm2D):
         self._obstacle = self._obstacle_mask(grid)
         if self._obstacle[sy, sx] or self._obstacle[ey, ex]:
             self._path = None
-            return None
+            return self.fail('invalid_endpoint', 'start or goal is blocked by the planner obstacle mask', stage='search')
 
         # Harmonic potential: obstacles/border = 1, goal = 0, free relaxes.
         phi = np.ones(grid.shape, dtype=np.float64)
@@ -124,7 +127,7 @@ class RRTLaplaceRandomSampling(Algorithm2D):
                     return self._path
 
         self._path = None
-        return None
+        return self.fail('iteration_limit', 'RRT-Laplace exhausted max_outer_iters without connecting the start to the tree', stage='search', outer_iterations=self.max_outer_iters, tree_nodes=len(self._nodes), branch_failures=self._descent_failures)
 
     def result(self, visualize=False):
         if visualize:
@@ -238,16 +241,22 @@ class RRTLaplaceRandomSampling(Algorithm2D):
         for _ in range(self._max_descent_steps):
             gx, gy = self._grad(phi, posx, posy)
             mag = math.hypot(gx, gy)
+            if not math.isfinite(mag):
+                return self._branch_failed('nonfinite_gradient')
             if mag == 0.0:
-                return None
+                return self._branch_failed('zero_gradient')
             posx -= self.step_size * gx / mag
             posy -= self.step_size * gy / mag
             if not (1 <= posy < self._H - 1 and 1 <= posx < self._W - 1):
-                return None
+                return self._branch_failed('out_of_bounds')
             points.append((posx, posy))
             hit = self._query_tree(posx, posy, self.connect_radius)
             if hit is not None:
                 return points, hit
+        return self._branch_failed('step_limit')
+
+    def _branch_failed(self, code):
+        self._descent_failures[code] = self._descent_failures.get(code, 0) + 1
         return None
 
     def _add_branch(self, points, connected_id):

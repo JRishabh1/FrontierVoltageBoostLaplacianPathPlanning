@@ -98,9 +98,9 @@ def descend_field(field: np.ndarray, grid: np.ndarray, start: tuple, end: tuple,
     Returns raw continuous positions in user (x, y, ...) order. On failure
     the reason is stored in ``diag['reason']`` when a dict is passed.
     """
-    def fail(reason):
+    def fail(code, reason):
         if diag is not None:
-            diag['reason'] = reason
+            diag.update(code=code, reason=reason, details={'stage': 'extraction', 'steps': steps, 'position': pos[::-1].tolist()})
         return None
 
     def at(p):
@@ -120,7 +120,8 @@ def descend_field(field: np.ndarray, grid: np.ndarray, start: tuple, end: tuple,
 
     best = math.inf
     since_best = 0
-    for _ in range(max_iters):
+    steps = 0
+    for iteration in range(max_iters):
         pts = pos + offsets
         if interpolate:
             vals = ndimage.map_coordinates(field, pts.T, order=1, mode='nearest')
@@ -129,8 +130,10 @@ def descend_field(field: np.ndarray, grid: np.ndarray, start: tuple, end: tuple,
             vals = field[tuple(idx.T)]
         grad = vals[1::2] - vals[2::2]
         mag = float(np.sqrt(grad @ grad))
-        if not math.isfinite(mag) or mag == 0.0:
-            return fail(f'zero gradient at {at(pos)}')
+        if not math.isfinite(mag):
+            return fail('nonfinite_gradient', f'non-finite gradient at {at(pos)}')
+        if mag == 0.0:
+            return fail('zero_gradient', f'zero gradient at {at(pos)}')
 
         value = float(vals[0])
         if not math.isfinite(best) or value < best - 1e-12 * (1.0 + abs(best)):
@@ -139,18 +142,19 @@ def descend_field(field: np.ndarray, grid: np.ndarray, start: tuple, end: tuple,
         else:
             since_best += 1
             if since_best >= stall_window:
-                return fail(f'local minimum near {at(pos)} (field stopped decreasing '
+                return fail('stalled', f'local minimum near {at(pos)} (field stopped decreasing '
                             f'for {stall_window} steps)')
 
         pos = pos - (step_size / mag) * grad
+        steps = iteration + 1
         if not in_free_cell(grid, pos):
-            return fail(f'descent left free space at {at(pos)}')
+            return fail('out_of_bounds' if np.any((pos < -0.5) | (pos >= np.array(grid.shape)-0.5)) else 'collision', f'descent left free space at {at(pos)}')
         path.append(tuple(float(c) for c in pos[::-1]))
 
         if np.all(np.abs(end_g - pos) <= 1.0):
             path.append(tuple(float(c) for c in end))
             return path
-    return fail(f'goal not reached within {max_iters} steps')
+    return fail('step_limit', f'goal not reached within {max_iters} steps')
 
 
 def path_is_free(grid: np.ndarray, path) -> bool:

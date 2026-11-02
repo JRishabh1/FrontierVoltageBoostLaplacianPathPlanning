@@ -253,6 +253,9 @@ class Sweep:
             raise RuntimeError('GPU trial fell back to CPU; refusing to record it as CUDA')
         path = outcome.pop('path', None)
         valid, reason = validate_path(grid, path, entry['start'], entry['end'])
+        if path is not None and not valid:
+            outcome.update(failure_code='invalid_path',
+                           failure_details={'stage': 'validation', 'reason': reason})
         record = {'trial_key': key, **candidate, 'effective_params': params,
                   'size': size, 'phase': phase, 'map_set_id': manifest['id'],
                   'map': entry['stem'], 'map_sha256': entry['sha256'], 'repeat': repeat,

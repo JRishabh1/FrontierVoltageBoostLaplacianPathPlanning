@@ -32,6 +32,8 @@ class FrontierVoltageBoostLaplaceND(BaseAlgorithm):
     # ------------------------------------------------------------------
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._path = None
         grid = self.map.grid
         start = self.map.start   # (x, y, ...) user coords
         end   = self.map.end     # (x, y, ...) user coords
@@ -188,9 +190,9 @@ class FrontierVoltageBoostLaplaceND(BaseAlgorithm):
         # visualization, never for smoothness metrics or reporting.
         path = [tuple(reversed(pos))]
 
-        for _ in range(10000):
+        for iteration in range(10000):
             if any(not (0 < pos[d] < phi.shape[d] - 1) for d in range(ndim)):
-                return None
+                return self.fail('out_of_bounds', 'descent left the interior of the field', stage='extraction', steps=iteration, position=list(reversed(pos)))
 
             if self.bilinear_interpolation:
                 grad = self._get_grad_nlinear(phi, pos)
@@ -207,8 +209,10 @@ class FrontierVoltageBoostLaplaceND(BaseAlgorithm):
                     )
 
             mag = math.sqrt(sum(g * g for g in grad))
+            if not math.isfinite(mag):
+                return self.fail('nonfinite_gradient', 'descent gradient is not finite', stage='extraction', steps=iteration, position=list(reversed(pos)))
             if mag == 0:
-                return None
+                return self.fail('zero_gradient', 'descent gradient is zero before reaching the goal', stage='extraction', steps=iteration, position=list(reversed(pos)))
 
             step = self.step_size / mag
             for d in range(ndim):
@@ -220,7 +224,7 @@ class FrontierVoltageBoostLaplaceND(BaseAlgorithm):
                 path.append(tuple(float(c) for c in end))
                 return path
 
-        return None
+        return self.fail('step_limit', 'goal not reached within 10000 descent steps', stage='extraction', steps=10000, position=list(reversed(pos)))
 
     @staticmethod
     def _fv(nv, pv):

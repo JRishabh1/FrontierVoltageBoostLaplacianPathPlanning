@@ -35,7 +35,9 @@ def describe_error(exc: BaseException, limit: int = 5) -> str:
 
 def _worker(conn, algo_id: str, params: dict, grid: np.ndarray, start: tuple, end: tuple):
     """Child-process entry: build map + algorithm, solve, send result back."""
+    stage = 'setup'
     try:
+        conn.send({'event': 'stage', 'stage': stage})
         setup_start = time.perf_counter()
         from benchmark_app.registry import get_spec
         from map_generation import Map, Map2D, Map3D
@@ -51,6 +53,8 @@ def _worker(conn, algo_id: str, params: dict, grid: np.ndarray, start: tuple, en
         spec = get_spec(algo_id)
         algo = spec.build(map_obj, params)
         device = 'cpu'
+        stage = 'warmup'
+        conn.send({'event': 'stage', 'stage': stage})
 
         # Importing PyTorch in this fresh subprocess costs ~0.5s+ and the first
         # tensor/conv op pays one-time dispatcher + algorithm-selection setup —
@@ -72,11 +76,15 @@ def _worker(conn, algo_id: str, params: dict, grid: np.ndarray, start: tuple, en
                 torch.cuda.synchronize()
 
         setup_s = time.perf_counter() - setup_start
+        stage = 'solve'
+        conn.send({'event': 'stage', 'stage': stage})
         t0 = time.perf_counter()
+        cpu0 = time.process_time()
         path = algo.solve()
         if device == 'cuda':
             torch.cuda.synchronize()
         elapsed = time.perf_counter() - t0
+        cpu_s = time.process_time() - cpu0
 
         if path is not None:
             # Preserve continuous coordinates — algorithms like FVB return
@@ -86,11 +94,26 @@ def _worker(conn, algo_id: str, params: dict, grid: np.ndarray, start: tuple, en
         # Planners may say why they found no path (external wrappers do).
         reason = getattr(algo, 'failure_reason', None) if path is None else None
         conn.send({'ok': True, 'path': path, 'time_s': elapsed, 'reason': reason,
+                   'failure_code': getattr(algo, 'failure_code', None),
+                   'failure_details': getattr(algo, 'failure_details', {}),
+                   'search_stats': getattr(algo, 'search_stats', {}), 'cpu_time_s': cpu_s,
                    'device': device, 'backend': getattr(algo, 'backend_used', None),
                    'setup_s': setup_s, 'converged': getattr(algo, 'converged', None),
                    'sweeps_used': getattr(algo, 'sweeps_used', None)})
     except Exception as exc:
-        conn.send({'ok': False, 'error': describe_error(exc, limit=5)})
+        code = 'exception'
+        if type(exc).__name__ == 'UnsupportedMapError':
+            code = 'unsupported_map'
+        elif isinstance(exc, ImportError):
+            code = 'dependency_missing'
+        elif isinstance(exc, MemoryError) or 'OutOfMemory' in type(exc).__name__:
+            code = 'out_of_memory'
+        elif isinstance(exc, (FloatingPointError, np.linalg.LinAlgError)):
+            code = 'numerical_error'
+        elif stage == 'setup' and isinstance(exc, (ValueError, TypeError)):
+            code = 'invalid_parameters'
+        conn.send({'ok': False, 'error': describe_error(exc, limit=5),
+                   'failure_code': code, 'failure_details': {'stage': stage}})
     finally:
         conn.close()
 
@@ -112,6 +135,7 @@ def solve_with_timeout(algo_id: str, params: dict, grid: np.ndarray,
 
     # Wait in short slices so cancellation is responsive.
     result = None
+    stage = 'startup'
     cancelled = False
     deadline = time.monotonic() + timeout_s
     def stop_child():
@@ -132,6 +156,10 @@ def solve_with_timeout(algo_id: str, params: dict, grid: np.ndarray,
                     result = parent_conn.recv()
                 except EOFError:
                     result = None
+                if result and result.get('event') == 'stage':
+                    stage = result['stage']
+                    result = None
+                    continue
                 break
             if not proc.is_alive():
                 break
@@ -144,7 +172,8 @@ def solve_with_timeout(algo_id: str, params: dict, grid: np.ndarray,
         stop_child()
         parent_conn.close()
         return {'solved': False, 'path': None, 'time_s': None,
-                'error': 'cancelled', 'cancelled': True}
+                'error': 'cancelled', 'cancelled': True, 'failure_code': 'cancelled',
+                'failure_details': {'stage': stage}}
 
     # Once the watchdog deadline is reached, do not give a stuck solver an
     # additional five seconds to run before terminating it.
@@ -158,19 +187,29 @@ def solve_with_timeout(algo_id: str, params: dict, grid: np.ndarray,
     if result is None:
         if timed_out:
             return {'solved': False, 'path': None, 'time_s': timeout_s,
-                    'error': f'timed out after {timeout_s:.0f}s (process terminated)'}
+                    'error': f'timed out after {timeout_s:.0f}s during {stage} (process terminated)',
+                    'failure_code': 'solver_timeout' if stage == 'solve' else 'setup_timeout',
+                    'failure_details': {'stage': stage, 'budget_s': timeout_s}}
         return {'solved': False, 'path': None, 'time_s': None,
-                'error': f'solver process died (exit code {proc.exitcode})'}
+                'error': f'solver process died (exit code {proc.exitcode})',
+                'failure_code': 'process_crash',
+                'failure_details': {'stage': stage, 'exit_code': proc.exitcode}}
 
     if not result.get('ok'):
         return {'solved': False, 'path': None, 'time_s': None,
-                'error': result.get('error', 'unknown error')}
+                'error': result.get('error', 'unknown error'),
+                'failure_code': result.get('failure_code', 'exception'),
+                'failure_details': result.get('failure_details', {})}
 
     path = result['path']
     return {
         'solved': path is not None and len(path) > 0,
         'path': path,
         'time_s': result['time_s'],
+        'cpu_time_s': result.get('cpu_time_s'),
+        'search_stats': result.get('search_stats', {}),
+        'failure_code': None if path else (result.get('failure_code') or 'no_path_unclassified'),
+        'failure_details': {} if path else result.get('failure_details', {}),
         'device': result.get('device'),
         'backend': result.get('backend'),
         'setup_s': result.get('setup_s'),

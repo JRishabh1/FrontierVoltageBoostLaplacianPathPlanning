@@ -5,6 +5,8 @@ __pycache__/
 # pip editable install artifacts
 *.egg-info/
 *.egg
+Algorithms/_astar_native*.so
+Algorithms/_astar_native*.pyd
 
 # Benchmark app data (map sets + run results)
 Benchmark Data/

@@ -75,12 +75,13 @@ class EikonalIterativeGPU(BaseAlgorithm):
         self.failure_reason = None   # why the last solve found no path
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._path = None
         grid = self.map.grid
         self._arrival = self._arrival_times(grid, self.map.end)
         if not self.converged:
             self._path = None
-            self.failure_reason = f'eikonal field did not converge in {self.sweeps_used} sweeps'
-            return None
+            return self.fail('nonconvergence', f'eikonal field did not converge in {self.sweeps_used} sweeps', stage='field', sweeps=self.sweeps_used)
         diag = {}
         self._path = _common.descend_field(
             self._arrival, grid, self.map.start, self.map.end,
@@ -88,6 +89,8 @@ class EikonalIterativeGPU(BaseAlgorithm):
             stall_window=self.stall_window, interpolate=self.bilinear_interpolation,
             diag=diag)
         self.failure_reason = diag.get('reason')
+        self.failure_code = diag.get('code')
+        self.failure_details = diag.get('details', {})
         return self._path
 
     def result(self, visualize=False):

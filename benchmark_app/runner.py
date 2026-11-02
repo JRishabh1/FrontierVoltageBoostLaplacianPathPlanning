@@ -362,6 +362,11 @@ def _summarize(algorithms: list, results: list) -> list:
         solved = [r for r in recs if r['solved']]
         times = [r['time_s'] for r in solved if r['time_s'] is not None]
         pens = [r['metrics']['steering_penalty'] for r in solved if r.get('metrics')]
+        failures = {}
+        for r in recs:
+            if not r['solved']:
+                code = r.get('failure_code') or 'no_path_unclassified'
+                failures[code] = failures.get(code, 0) + 1
         summary.append({
             'algorithm_key': key,
             'algorithm_id': algo['id'],
@@ -369,6 +374,7 @@ def _summarize(algorithms: list, results: list) -> list:
             'params': algo.get('params'),
             'total': len(recs),
             'solved': len(solved),
+            'failure_counts': failures,
             'mean_time_s': float(np.mean(times)) if times else None,
             'mean_steering_penalty': float(np.mean(pens)) if pens else None,
         })
@@ -523,6 +529,10 @@ def _execute_run(job: dict):
                 'solved': outcome['solved'],
                 'error': outcome['error'],
                 'time_s': outcome['time_s'],
+                **{k: outcome.get(k) for k in (
+                    'failure_code', 'failure_details', 'search_stats',
+                    'device', 'backend', 'setup_s', 'cpu_time_s',
+                    'converged', 'sweeps_used')},
                 'path_steps': None,
                 'path_length_euclidean': None,
                 'metrics': None,

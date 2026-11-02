@@ -70,6 +70,13 @@ class MyGenericAlgorithm(BaseAlgorithm):
 ### `AStarAlgorithm` (Baseline Algorithms/astar.py)
 
 A* search that works on both 2D and 3D maps. Reads `grid.ndim` at solve time.
+Uses admissible octile / 26-neighbor grid-distance heuristics, larger-g tie
+breaking and precomputed corner checks. Corner cutting is disabled by default.
+`python benchmarks/build_astar.py` builds the optional C++17 CPU search (requires
+`pip install pybind11`). With `use_native=True` (default), A* uses it when
+installed, otherwise the optimized Python search. `backend_used` records which
+ran; `search_stats` includes expansions, heap operations and path cost.
+See [A* profiling and failure diagnostics](../benchmarks/ASTAR_DIAGNOSTICS.md).
 
 ```python
 import importlib.util, os

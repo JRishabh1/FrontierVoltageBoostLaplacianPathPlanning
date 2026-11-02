@@ -26,6 +26,8 @@ class FrontierVoltageBoostLaplace(Algorithm2D):
     # ------------------------------------------------------------------
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._path = None
         grid = self.map.grid
         start = self.map.start  # (x, y)
         end = self.map.end      # (x, y)
@@ -177,9 +179,9 @@ class FrontierVoltageBoostLaplace(Algorithm2D):
 
         path = [(posx, posy)]
 
-        for _ in range(10000):
+        for iteration in range(10000):
             if not (0 < posy < phi.shape[0] - 1 and 0 < posx < phi.shape[1] - 1):
-                return None
+                return self.fail('out_of_bounds', 'descent left the interior of the field', stage='extraction', steps=iteration, position=[posx, posy])
 
             if self.bilinear_interpolation:
                 gradx, grady = self._get_grad_bilinear(phi, posx, posy)
@@ -191,8 +193,10 @@ class FrontierVoltageBoostLaplace(Algorithm2D):
                 gradx = self._fv(phi[y, x + 1], point_v) - self._fv(phi[y, x - 1], point_v)
 
             mag = math.sqrt(gradx ** 2 + grady ** 2)
+            if not math.isfinite(mag):
+                return self.fail('nonfinite_gradient', 'descent gradient is not finite', stage='extraction', steps=iteration, position=[posx, posy])
             if mag == 0:
-                return None
+                return self.fail('zero_gradient', 'descent gradient is zero before reaching the goal', stage='extraction', steps=iteration, position=[posx, posy])
 
             step = self.step_size / mag
             posx -= step * gradx
@@ -204,7 +208,7 @@ class FrontierVoltageBoostLaplace(Algorithm2D):
                 path.append((float(ex), float(ey)))
                 return path
 
-        return None
+        return self.fail('step_limit', 'goal not reached within 10000 descent steps', stage='extraction', steps=10000, position=[posx, posy])
 
     @staticmethod
     def _bilinear_interp(phi, x, y):

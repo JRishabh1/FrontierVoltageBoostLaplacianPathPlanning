@@ -261,13 +261,18 @@ def results_csv_text(results: list, metric_keys: list) -> str:
         'run_id', 'run_name', 'timestamp', 'map_set_id', 'map_name', 'dims',
         'algorithm_key', 'algorithm_id', 'algorithm_label', 'params',
         'solved', 'error', 'time_s', 'path_steps', 'path_length_euclidean',
-    ] + metric_keys
+    ] + metric_keys + [
+        'failure_code', 'failure_details', 'search_stats', 'device', 'backend',
+        'setup_s', 'cpu_time_s', 'converged', 'sweeps_used',
+    ]
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=fields, extrasaction='ignore')
     writer.writeheader()
     for rec in results:
         row = {k: rec.get(k, '') for k in fields}
         row['params'] = json.dumps(rec.get('params', {}))
+        for key in ('failure_details', 'search_stats'):
+            row[key] = json.dumps(rec.get(key) or {})
         metrics = rec.get('metrics') or {}
         for mk in metric_keys:
             row[mk] = metrics.get(mk, '')

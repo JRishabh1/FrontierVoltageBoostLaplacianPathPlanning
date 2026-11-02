@@ -62,6 +62,8 @@ class PotentialFieldAlgorithm(Algorithm2D):
     # ------------------------------------------------------------------
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._path = None
         grid = self.map.grid
         start = self.map.start  # (x, y)
         end = self.map.end      # (x, y)
@@ -148,10 +150,10 @@ class PotentialFieldAlgorithm(Algorithm2D):
         best_goal_dist = math.hypot(ex - posx, ey - posy)
         steps_since_best = 0
 
-        for _ in range(self.max_iters):
+        for iteration in range(self.max_iters):
             if not (1 <= posy < potential.shape[0] - 1 and
                     1 <= posx < potential.shape[1] - 1):
-                return None
+                return self.fail('out_of_bounds', 'descent left the interior of the field', stage='extraction', steps=iteration, position=[posx, posy])
 
             if self.bilinear_interpolation:
                 gradx, grady = self._get_grad_bilinear(potential, posx, posy)
@@ -161,17 +163,19 @@ class PotentialFieldAlgorithm(Algorithm2D):
                 grady = potential[y + 1, x] - potential[y - 1, x]
                 gradx = potential[y, x + 1] - potential[y, x - 1]
             mag = math.hypot(gradx, grady)
+            if not math.isfinite(mag):
+                return self.fail('nonfinite_gradient', 'descent gradient is not finite', stage='extraction', steps=iteration, position=[posx, posy])
             if mag == 0:
-                return None   # exact local minimum
+                return self.fail('zero_gradient', 'descent gradient is zero before reaching the goal', stage='extraction', steps=iteration, position=[posx, posy])
 
             posx -= (self.step_size / mag) * gradx
             posy -= (self.step_size / mag) * grady
 
             if not (0 <= posy < potential.shape[0] and 0 <= posx < potential.shape[1]):
-                return None
+                return self.fail('out_of_bounds', 'descent left the grid', stage='extraction', steps=iteration + 1, position=[posx, posy])
             yi, xi = math.floor(posy + 0.5), math.floor(posx + 0.5)
             if yi >= grid.shape[0] or xi >= grid.shape[1] or grid[yi, xi] == 1:
-                return None   # descended into an obstacle cell
+                return self.fail('collision', 'descent entered an obstacle cell', stage='extraction', steps=iteration + 1, position=[posx, posy])
 
             path.append((posx, posy))
 
@@ -186,9 +190,9 @@ class PotentialFieldAlgorithm(Algorithm2D):
             else:
                 steps_since_best += 1
                 if steps_since_best >= self.stall_window:
-                    return None   # oscillating in a local minimum
+                    return self.fail('stalled', 'goal distance did not improve within the stall window', stage='extraction', steps=iteration + 1, position=[posx, posy])
 
-        return None
+        return self.fail('step_limit', 'descent exhausted max_iters', stage='extraction', steps=self.max_iters, position=[posx, posy])
 
     def _get_grad_bilinear(self, potential, posx, posy):
         """Central-difference gradient of the bilinearly interpolated potential."""

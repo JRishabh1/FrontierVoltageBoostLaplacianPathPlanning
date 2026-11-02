@@ -91,6 +91,8 @@ class CustomHarmonicFields2D(Algorithm2D):
     # ------------------------------------------------------------------
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._path = None
         grid = self.map.grid
         start, end = self.map.start, self.map.end
         h, w = grid.shape
@@ -125,8 +127,10 @@ class CustomHarmonicFields2D(Algorithm2D):
         if not reached:
             self._path = None
             if len(fpath) - 1 >= self.max_iters:
+                self.failure_code = 'step_limit'
                 self.failure_reason = f'upstream integrator hit its step limit ({self.max_iters})'
             else:
+                self.failure_code = 'stalled'
                 self.failure_reason = (f'upstream integrator stalled at ({last[0]:.1f}, {last[1]:.1f}) — '
                                        'could not advance without entering an obstacle squircle')
         else:
@@ -134,6 +138,7 @@ class CustomHarmonicFields2D(Algorithm2D):
             path.append((float(end[0]), float(end[1])))
             self._path = path if _common.path_is_free(grid, path) else None
             if self._path is None:
+                self.failure_code = 'collision'
                 self.failure_reason = 'integrated path crosses an obstacle cell'
 
         if visualize:

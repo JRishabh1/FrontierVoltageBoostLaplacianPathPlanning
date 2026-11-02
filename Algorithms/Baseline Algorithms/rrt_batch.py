@@ -28,6 +28,8 @@ class BatchedRRTGPU(BaseAlgorithm):
         self._path = None
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._path = None
         import torch
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.backend_used = f'torch-{device}-batched-rrt-float64'
@@ -55,8 +57,9 @@ class BatchedRRTGPU(BaseAlgorithm):
             blocked = occupancy[tuple(safe[..., d] for d in range(ndim))] != 0
             return (inside & ~blocked).all(dim=1)
 
-        if not bool(segments_free(nodes[:1], nodes[:1], 0)[0]):
-            return None
+        endpoints = torch.stack((nodes[0], goal))
+        if not bool(segments_free(endpoints, endpoints, 0).all()):
+            return self.fail('invalid_endpoint', 'start or goal is blocked or outside the grid', stage='search')
         if tuple(self.map.start) == tuple(self.map.end):
             self._path = [tuple(self.map.start)]
             return self._path
@@ -98,7 +101,7 @@ class BatchedRRTGPU(BaseAlgorithm):
                     self._path = path[::-1]
                     return self._path
             count += n
-        return None
+        return self.fail('iteration_limit', 'batched RRT exhausted its sample budget before connecting to the goal', stage='search', samples=self.max_iterations, tree_nodes=count, batches=math.ceil(self.max_iterations/self.batch_size))
 
     def result(self, visualize=False):
         return self._path

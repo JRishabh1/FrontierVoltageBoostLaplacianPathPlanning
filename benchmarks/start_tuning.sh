@@ -28,6 +28,7 @@ if [[ ${SKIP_SETUP:-0} != 1 ]]; then
         *) echo "Install a CuPy wheel matching CUDA $CUDA_MAJOR before running."; exit 1 ;;
     esac
     "$PY" third_party/setup_external.py
+    "$PY" benchmarks/build_astar.py
 fi
 "$PY" -c 'import cupy; import torch; print("GPU:", torch.cuda.get_device_name(0)); print("CuPy:", cupy.__version__); cupy.zeros(1); cupy.cuda.Device().synchronize()'
 # Fail before the overnight sweep if CUDA kernels or numerical parity break.

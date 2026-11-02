@@ -72,6 +72,8 @@ class FastMarchingAlgorithm(BaseAlgorithm):
         self._arrival = None
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._path = None
         grid = self.map.grid
         if not 2 <= grid.ndim <= self._fmm.MAX_DIMS:
             raise _common.UnsupportedMapError(
@@ -85,6 +87,8 @@ class FastMarchingAlgorithm(BaseAlgorithm):
             stall_window=self.stall_window, interpolate=self.bilinear_interpolation,
             diag=diag)
         self.failure_reason = diag.get('reason')
+        self.failure_code = diag.get('code')
+        self.failure_details = diag.get('details', {})
 
         if visualize:
             self._visualize()

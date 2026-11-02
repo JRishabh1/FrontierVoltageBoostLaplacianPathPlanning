@@ -1,0 +1,2163 @@
+{
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.39",
+  "commit": "dfe47142c90edfe4396d12aadeba9f36544065a4",
+  "settings": {
+    "map_set": null,
+    "baseline_ref": "dfe4714",
+    "size": 512,
+    "limit": 12,
+    "repeats": 3,
+    "seed": 17,
+    "timeout": 60.0,
+    "allow_corner_cutting": false,
+    "output": "benchmarks/results/astar-profile.json",
+    "cprofile": "benchmarks/results/astar-before.prof"
+  },
+  "summary": {
+    "baseline": {
+      "attempts": 36,
+      "solved": 36,
+      "mean_s": 1.5041001596388937,
+      "median_s": 1.5012058240000101
+    },
+    "python": {
+      "attempts": 36,
+      "solved": 36,
+      "mean_s": 0.12527020722222915,
+      "median_s": 0.12758904799994752
+    },
+    "native": {
+      "attempts": 36,
+      "solved": 36,
+      "mean_s": 0.011000994222222794,
+      "median_s": 0.010562504499944225
+    }
+  },
+  "trials": [
+    {
+      "map": "synthetic_000",
+      "variant": "baseline",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 1.8779015900000786,
+      "cpu_time_s": 2.169982113,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_000",
+      "variant": "python",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.15841158399996402,
+      "cpu_time_s": 0.15839254899999977,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 29272,
+        "popped": 61311,
+        "stale_pops": 32038,
+        "pushes": 67608,
+        "peak_open": 8866,
+        "path_cost": 662.2173875177058
+      },
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_000",
+      "variant": "native",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.012217542000030335,
+      "cpu_time_s": 0.012215107999999919,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 29272,
+        "popped": 61311,
+        "stale_pops": 32038,
+        "pushes": 67608,
+        "peak_open": 8866,
+        "path_cost": 662.2173875177058
+      },
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_000",
+      "variant": "python",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.12252108300003783,
+      "cpu_time_s": 0.12250873800000006,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 29272,
+        "popped": 61311,
+        "stale_pops": 32038,
+        "pushes": 67608,
+        "peak_open": 8866,
+        "path_cost": 662.2173875177058
+      },
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_000",
+      "variant": "native",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.011940841000068758,
+      "cpu_time_s": 0.011938235999999769,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 29272,
+        "popped": 61311,
+        "stale_pops": 32038,
+        "pushes": 67608,
+        "peak_open": 8866,
+        "path_cost": 662.2173875177058
+      },
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_000",
+      "variant": "baseline",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 1.8615846050000755,
+      "cpu_time_s": 1.8615337219999994,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_000",
+      "variant": "native",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.010818520999919201,
+      "cpu_time_s": 0.010816596999999817,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 29272,
+        "popped": 61311,
+        "stale_pops": 32038,
+        "pushes": 67608,
+        "peak_open": 8866,
+        "path_cost": 662.2173875177058
+      },
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_000",
+      "variant": "baseline",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 1.7548189919999686,
+      "cpu_time_s": 1.7547283589999996,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_000",
+      "variant": "python",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.12764055799993912,
+      "cpu_time_s": 0.12762990600000013,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 29272,
+        "popped": 61311,
+        "stale_pops": 32038,
+        "pushes": 67608,
+        "peak_open": 8866,
+        "path_cost": 662.2173875177058
+      },
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_001",
+      "variant": "baseline",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.9301779690000558,
+      "cpu_time_s": 0.9301565780000001,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 634.0996385116111
+    },
+    {
+      "map": "synthetic_001",
+      "variant": "python",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.0925661690000652,
+      "cpu_time_s": 0.09255113299999973,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 17237,
+        "popped": 39096,
+        "stale_pops": 21858,
+        "pushes": 49029,
+        "peak_open": 18744,
+        "path_cost": 634.0996385116144
+      },
+      "path_cost": 634.0996385116111
+    },
+    {
+      "map": "synthetic_001",
+      "variant": "native",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.008991382999965936,
+      "cpu_time_s": 0.00898981100000018,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 17237,
+        "popped": 39096,
+        "stale_pops": 21858,
+        "pushes": 49029,
+        "peak_open": 18744,
+        "path_cost": 634.0996385116144
+      },
+      "path_cost": 634.0996385116111
+    },
+    {
+      "map": "synthetic_001",
+      "variant": "python",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.08806801900004757,
+      "cpu_time_s": 0.08805135000000064,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 17237,
+        "popped": 39096,
+        "stale_pops": 21858,
+        "pushes": 49029,
+        "peak_open": 18744,
+        "path_cost": 634.0996385116144
+      },
+      "path_cost": 634.0996385116111
+    },
+    {
+      "map": "synthetic_001",
+      "variant": "native",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.00909168199996202,
+      "cpu_time_s": 0.009089408999999549,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 17237,
+        "popped": 39096,
+        "stale_pops": 21858,
+        "pushes": 49029,
+        "peak_open": 18744,
+        "path_cost": 634.0996385116144
+      },
+      "path_cost": 634.0996385116111
+    },
+    {
+      "map": "synthetic_001",
+      "variant": "baseline",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 1.0013668020000068,
+      "cpu_time_s": 1.001335129000001,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 634.0996385116111
+    },
+    {
+      "map": "synthetic_001",
+      "variant": "native",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.010254420000023856,
+      "cpu_time_s": 0.010251897999999926,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 17237,
+        "popped": 39096,
+        "stale_pops": 21858,
+        "pushes": 49029,
+        "peak_open": 18744,
+        "path_cost": 634.0996385116144
+      },
+      "path_cost": 634.0996385116111
+    },
+    {
+      "map": "synthetic_001",
+      "variant": "baseline",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.971359922999909,
+      "cpu_time_s": 0.9713368409999994,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 634.0996385116111
+    },
+    {
+      "map": "synthetic_001",
+      "variant": "python",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.09072704899995188,
+      "cpu_time_s": 0.090716883999999,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 17237,
+        "popped": 39096,
+        "stale_pops": 21858,
+        "pushes": 49029,
+        "peak_open": 18744,
+        "path_cost": 634.0996385116144
+      },
+      "path_cost": 634.0996385116111
+    },
+    {
+      "map": "synthetic_002",
+      "variant": "baseline",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 1.6103629540000384,
+      "cpu_time_s": 1.6101515859999989,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 656.3595231414336
+    },
+    {
+      "map": "synthetic_002",
+      "variant": "python",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.1390961619999871,
+      "cpu_time_s": 0.1390934650000002,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 31135,
+        "popped": 69153,
+        "stale_pops": 38017,
+        "pushes": 72745,
+        "peak_open": 13180,
+        "path_cost": 656.3595231414366
+      },
+      "path_cost": 656.3595231414336
+    },
+    {
+      "map": "synthetic_002",
+      "variant": "native",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.012174907000030544,
+      "cpu_time_s": 0.012172745000000873,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 31135,
+        "popped": 69153,
+        "stale_pops": 38017,
+        "pushes": 72745,
+        "peak_open": 13180,
+        "path_cost": 656.3595231414366
+      },
+      "path_cost": 656.3595231414336
+    },
+    {
+      "map": "synthetic_002",
+      "variant": "python",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.13998516900005598,
+      "cpu_time_s": 0.1399654160000008,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 31135,
+        "popped": 69153,
+        "stale_pops": 38017,
+        "pushes": 72745,
+        "peak_open": 13180,
+        "path_cost": 656.3595231414366
+      },
+      "path_cost": 656.3595231414336
+    },
+    {
+      "map": "synthetic_002",
+      "variant": "native",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.01249536300008458,
+      "cpu_time_s": 0.012493291000000184,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 31135,
+        "popped": 69153,
+        "stale_pops": 38017,
+        "pushes": 72745,
+        "peak_open": 13180,
+        "path_cost": 656.3595231414366
+      },
+      "path_cost": 656.3595231414336
+    },
+    {
+      "map": "synthetic_002",
+      "variant": "baseline",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 1.6213386759999366,
+      "cpu_time_s": 1.6212863779999989,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 656.3595231414336
+    },
+    {
+      "map": "synthetic_002",
+      "variant": "native",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.014536997999925916,
+      "cpu_time_s": 0.014533915999999536,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 31135,
+        "popped": 69153,
+        "stale_pops": 38017,
+        "pushes": 72745,
+        "peak_open": 13180,
+        "path_cost": 656.3595231414366
+      },
+      "path_cost": 656.3595231414336
+    },
+    {
+      "map": "synthetic_002",
+      "variant": "baseline",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 1.6398516780000136,
+      "cpu_time_s": 1.6397923579999993,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 656.3595231414336
+    },
+    {
+      "map": "synthetic_002",
+      "variant": "python",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.13998753800001396,
+      "cpu_time_s": 0.139974865000001,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 31135,
+        "popped": 69153,
+        "stale_pops": 38017,
+        "pushes": 72745,
+        "peak_open": 13180,
+        "path_cost": 656.3595231414366
+      },
+      "path_cost": 656.3595231414336
+    },
+    {
+      "map": "synthetic_003",
+      "variant": "baseline",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 1.5266618329999346,
+      "cpu_time_s": 1.5266209010000011,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 650.5016587651645
+    },
+    {
+      "map": "synthetic_003",
+      "variant": "python",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.13732860499999333,
+      "cpu_time_s": 0.13732585600000036,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 31251,
+        "popped": 47319,
+        "stale_pops": 16067,
+        "pushes": 83154,
+        "peak_open": 35836,
+        "path_cost": 650.5016587651678
+      },
+      "path_cost": 650.5016587651645
+    },
+    {
+      "map": "synthetic_003",
+      "variant": "native",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.011937224000007518,
+      "cpu_time_s": 0.011934499999998849,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 31251,
+        "popped": 47319,
+        "stale_pops": 16067,
+        "pushes": 83154,
+        "peak_open": 35836,
+        "path_cost": 650.5016587651678
+      },
+      "path_cost": 650.5016587651645
+    },
+    {
+      "map": "synthetic_003",
+      "variant": "python",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.14506452800003444,
+      "cpu_time_s": 0.14505266799999816,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 31251,
+        "popped": 47319,
+        "stale_pops": 16067,
+        "pushes": 83154,
+        "peak_open": 35836,
+        "path_cost": 650.5016587651678
+      },
+      "path_cost": 650.5016587651645
+    },
+    {
+      "map": "synthetic_003",
+      "variant": "native",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.012513721000004807,
+      "cpu_time_s": 0.012510196000000917,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 31251,
+        "popped": 47319,
+        "stale_pops": 16067,
+        "pushes": 83154,
+        "peak_open": 35836,
+        "path_cost": 650.5016587651678
+      },
+      "path_cost": 650.5016587651645
+    },
+    {
+      "map": "synthetic_003",
+      "variant": "baseline",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 1.462916942999982,
+      "cpu_time_s": 1.4628814840000004,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 650.5016587651645
+    },
+    {
+      "map": "synthetic_003",
+      "variant": "native",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.011771066000051178,
+      "cpu_time_s": 0.011768193000001759,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 31251,
+        "popped": 47319,
+        "stale_pops": 16067,
+        "pushes": 83154,
+        "peak_open": 35836,
+        "path_cost": 650.5016587651678
+      },
+      "path_cost": 650.5016587651645
+    },
+    {
+      "map": "synthetic_003",
+      "variant": "baseline",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 1.409145393000017,
+      "cpu_time_s": 1.4091048330000007,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 650.5016587651645
+    },
+    {
+      "map": "synthetic_003",
+      "variant": "python",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.12804977899997994,
+      "cpu_time_s": 0.12803231300000206,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 31251,
+        "popped": 47319,
+        "stale_pops": 16067,
+        "pushes": 83154,
+        "peak_open": 35836,
+        "path_cost": 650.5016587651678
+      },
+      "path_cost": 650.5016587651645
+    },
+    {
+      "map": "synthetic_004",
+      "variant": "baseline",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 1.1526983380000502,
+      "cpu_time_s": 1.1526137299999988,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 643.4722215136417
+    },
+    {
+      "map": "synthetic_004",
+      "variant": "python",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.11433954900007848,
+      "cpu_time_s": 0.1143263189999999,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 25142,
+        "popped": 52276,
+        "stale_pops": 27133,
+        "pushes": 64302,
+        "peak_open": 15887,
+        "path_cost": 643.4722215136447
+      },
+      "path_cost": 643.4722215136417
+    },
+    {
+      "map": "synthetic_004",
+      "variant": "native",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.009540959999981169,
+      "cpu_time_s": 0.009539167999999876,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 25142,
+        "popped": 52276,
+        "stale_pops": 27133,
+        "pushes": 64302,
+        "peak_open": 15887,
+        "path_cost": 643.4722215136447
+      },
+      "path_cost": 643.4722215136417
+    },
+    {
+      "map": "synthetic_004",
+      "variant": "python",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.10148941800002831,
+      "cpu_time_s": 0.10148660200000137,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 25142,
+        "popped": 52276,
+        "stale_pops": 27133,
+        "pushes": 64302,
+        "peak_open": 15887,
+        "path_cost": 643.4722215136447
+      },
+      "path_cost": 643.4722215136417
+    },
+    {
+      "map": "synthetic_004",
+      "variant": "native",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.00941716699992412,
+      "cpu_time_s": 0.009415633999999784,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 25142,
+        "popped": 52276,
+        "stale_pops": 27133,
+        "pushes": 64302,
+        "peak_open": 15887,
+        "path_cost": 643.4722215136447
+      },
+      "path_cost": 643.4722215136417
+    },
+    {
+      "map": "synthetic_004",
+      "variant": "baseline",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 1.1246090420000883,
+      "cpu_time_s": 1.1245678190000028,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 643.4722215136417
+    },
+    {
+      "map": "synthetic_004",
+      "variant": "native",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.010003367000081198,
+      "cpu_time_s": 0.010001775999999296,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 25142,
+        "popped": 52276,
+        "stale_pops": 27133,
+        "pushes": 64302,
+        "peak_open": 15887,
+        "path_cost": 643.4722215136447
+      },
+      "path_cost": 643.4722215136417
+    },
+    {
+      "map": "synthetic_004",
+      "variant": "baseline",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 1.1600620990000152,
+      "cpu_time_s": 1.1600136580000004,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 643.4722215136417
+    },
+    {
+      "map": "synthetic_004",
+      "variant": "python",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.10324084299998049,
+      "cpu_time_s": 0.10323772600000325,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 25142,
+        "popped": 52276,
+        "stale_pops": 27133,
+        "pushes": 64302,
+        "peak_open": 15887,
+        "path_cost": 643.4722215136447
+      },
+      "path_cost": 643.4722215136417
+    },
+    {
+      "map": "synthetic_005",
+      "variant": "baseline",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 2.261582475999944,
+      "cpu_time_s": 2.2614975930000014,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 673.0041840821061
+    },
+    {
+      "map": "synthetic_005",
+      "variant": "python",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.17583713999999873,
+      "cpu_time_s": 0.17582415500000081,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 43129,
+        "popped": 88652,
+        "stale_pops": 45522,
+        "pushes": 101296,
+        "peak_open": 27620,
+        "path_cost": 673.004184082109
+      },
+      "path_cost": 673.0041840821061
+    },
+    {
+      "map": "synthetic_005",
+      "variant": "native",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.01405709600010141,
+      "cpu_time_s": 0.014054313999999124,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 43129,
+        "popped": 88652,
+        "stale_pops": 45522,
+        "pushes": 101296,
+        "peak_open": 27620,
+        "path_cost": 673.004184082109
+      },
+      "path_cost": 673.0041840821061
+    },
+    {
+      "map": "synthetic_005",
+      "variant": "python",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.1730002520000653,
+      "cpu_time_s": 0.17298556199999737,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 43129,
+        "popped": 88652,
+        "stale_pops": 45522,
+        "pushes": 101296,
+        "peak_open": 27620,
+        "path_cost": 673.004184082109
+      },
+      "path_cost": 673.0041840821061
+    },
+    {
+      "map": "synthetic_005",
+      "variant": "native",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.014426204999949732,
+      "cpu_time_s": 0.014424062999999876,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 43129,
+        "popped": 88652,
+        "stale_pops": 45522,
+        "pushes": 101296,
+        "peak_open": 27620,
+        "path_cost": 673.004184082109
+      },
+      "path_cost": 673.0041840821061
+    },
+    {
+      "map": "synthetic_005",
+      "variant": "baseline",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 2.464269919000003,
+      "cpu_time_s": 2.4641038700000024,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 673.0041840821061
+    },
+    {
+      "map": "synthetic_005",
+      "variant": "native",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.01754375199993774,
+      "cpu_time_s": 0.01754141899999695,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 43129,
+        "popped": 88652,
+        "stale_pops": 45522,
+        "pushes": 101296,
+        "peak_open": 27620,
+        "path_cost": 673.004184082109
+      },
+      "path_cost": 673.0041840821061
+    },
+    {
+      "map": "synthetic_005",
+      "variant": "baseline",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 2.4780878389999543,
+      "cpu_time_s": 2.4780086519999998,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 673.0041840821061
+    },
+    {
+      "map": "synthetic_005",
+      "variant": "python",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.19578737100005128,
+      "cpu_time_s": 0.19577397700000176,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 43129,
+        "popped": 88652,
+        "stale_pops": 45522,
+        "pushes": 101296,
+        "peak_open": 27620,
+        "path_cost": 673.004184082109
+      },
+      "path_cost": 673.0041840821061
+    },
+    {
+      "map": "synthetic_006",
+      "variant": "baseline",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 1.3339513419999776,
+      "cpu_time_s": 1.3339169450000021,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 655.7737367038067
+    },
+    {
+      "map": "synthetic_006",
+      "variant": "python",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.11542998099992019,
+      "cpu_time_s": 0.11542664499999944,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 26005,
+        "popped": 39030,
+        "stale_pops": 13024,
+        "pushes": 68729,
+        "peak_open": 29700,
+        "path_cost": 655.77373670381
+      },
+      "path_cost": 655.7737367038067
+    },
+    {
+      "map": "synthetic_006",
+      "variant": "native",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.009129007000069578,
+      "cpu_time_s": 0.009126684000001717,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 26005,
+        "popped": 39030,
+        "stale_pops": 13024,
+        "pushes": 68729,
+        "peak_open": 29700,
+        "path_cost": 655.77373670381
+      },
+      "path_cost": 655.7737367038067
+    },
+    {
+      "map": "synthetic_006",
+      "variant": "python",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.12053417200002059,
+      "cpu_time_s": 0.12053119699999826,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 26005,
+        "popped": 39030,
+        "stale_pops": 13024,
+        "pushes": 68729,
+        "peak_open": 29700,
+        "path_cost": 655.77373670381
+      },
+      "path_cost": 655.7737367038067
+    },
+    {
+      "map": "synthetic_006",
+      "variant": "native",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.009305499999982203,
+      "cpu_time_s": 0.009303135999999768,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 26005,
+        "popped": 39030,
+        "stale_pops": 13024,
+        "pushes": 68729,
+        "peak_open": 29700,
+        "path_cost": 655.77373670381
+      },
+      "path_cost": 655.7737367038067
+    },
+    {
+      "map": "synthetic_006",
+      "variant": "baseline",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 1.2988085839999712,
+      "cpu_time_s": 1.2987569599999986,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 655.7737367038067
+    },
+    {
+      "map": "synthetic_006",
+      "variant": "native",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.009699024999918038,
+      "cpu_time_s": 0.009697473000002788,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 26005,
+        "popped": 39030,
+        "stale_pops": 13024,
+        "pushes": 68729,
+        "peak_open": 29700,
+        "path_cost": 655.77373670381
+      },
+      "path_cost": 655.7737367038067
+    },
+    {
+      "map": "synthetic_006",
+      "variant": "baseline",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 1.3236622279999892,
+      "cpu_time_s": 1.3236139520000023,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 655.7737367038067
+    },
+    {
+      "map": "synthetic_006",
+      "variant": "python",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.11083870200002366,
+      "cpu_time_s": 0.11083567600000066,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 26005,
+        "popped": 39030,
+        "stale_pops": 13024,
+        "pushes": 68729,
+        "peak_open": 29700,
+        "path_cost": 655.77373670381
+      },
+      "path_cost": 655.7737367038067
+    },
+    {
+      "map": "synthetic_007",
+      "variant": "baseline",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.976565456000003,
+      "cpu_time_s": 0.9765418580000045,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 629.9991334482228
+    },
+    {
+      "map": "synthetic_007",
+      "variant": "python",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.09387061699999322,
+      "cpu_time_s": 0.093867699999997,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 17909,
+        "popped": 27639,
+        "stale_pops": 9729,
+        "pushes": 50254,
+        "peak_open": 22616,
+        "path_cost": 629.9991334482262
+      },
+      "path_cost": 629.9991334482228
+    },
+    {
+      "map": "synthetic_007",
+      "variant": "native",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.007534636000059436,
+      "cpu_time_s": 0.007532482999998535,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 17909,
+        "popped": 27639,
+        "stale_pops": 9729,
+        "pushes": 50254,
+        "peak_open": 22616,
+        "path_cost": 629.9991334482262
+      },
+      "path_cost": 629.9991334482228
+    },
+    {
+      "map": "synthetic_007",
+      "variant": "python",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.08443831900001442,
+      "cpu_time_s": 0.08443520099999802,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 17909,
+        "popped": 27639,
+        "stale_pops": 9729,
+        "pushes": 50254,
+        "peak_open": 22616,
+        "path_cost": 629.9991334482262
+      },
+      "path_cost": 629.9991334482228
+    },
+    {
+      "map": "synthetic_007",
+      "variant": "native",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.007294719000014993,
+      "cpu_time_s": 0.007292566000003831,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 17909,
+        "popped": 27639,
+        "stale_pops": 9729,
+        "pushes": 50254,
+        "peak_open": 22616,
+        "path_cost": 629.9991334482262
+      },
+      "path_cost": 629.9991334482228
+    },
+    {
+      "map": "synthetic_007",
+      "variant": "baseline",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.946725266000044,
+      "cpu_time_s": 0.9466819659999999,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 629.9991334482228
+    },
+    {
+      "map": "synthetic_007",
+      "variant": "native",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.00813469799993527,
+      "cpu_time_s": 0.008132234999997934,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 17909,
+        "popped": 27639,
+        "stale_pops": 9729,
+        "pushes": 50254,
+        "peak_open": 22616,
+        "path_cost": 629.9991334482262
+      },
+      "path_cost": 629.9991334482228
+    },
+    {
+      "map": "synthetic_007",
+      "variant": "baseline",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.981153919999997,
+      "cpu_time_s": 0.9810204600000034,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 629.9991334482228
+    },
+    {
+      "map": "synthetic_007",
+      "variant": "python",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.09424575499997445,
+      "cpu_time_s": 0.09424329899999861,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 17909,
+        "popped": 27639,
+        "stale_pops": 9729,
+        "pushes": 50254,
+        "peak_open": 22616,
+        "path_cost": 629.9991334482262
+      },
+      "path_cost": 629.9991334482228
+    },
+    {
+      "map": "synthetic_008",
+      "variant": "baseline",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 2.208610766999982,
+      "cpu_time_s": 2.208553178999999,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 666.9036790187179
+    },
+    {
+      "map": "synthetic_008",
+      "variant": "python",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.12753753799995593,
+      "cpu_time_s": 0.127534433000001,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 29442,
+        "popped": 38741,
+        "stale_pops": 9298,
+        "pushes": 78487,
+        "peak_open": 39747,
+        "path_cost": 666.9036790187214
+      },
+      "path_cost": 666.9036790187179
+    },
+    {
+      "map": "synthetic_008",
+      "variant": "native",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.010235632999979316,
+      "cpu_time_s": 0.010233470000002853,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 29442,
+        "popped": 38741,
+        "stale_pops": 9298,
+        "pushes": 78487,
+        "peak_open": 39747,
+        "path_cost": 666.9036790187214
+      },
+      "path_cost": 666.9036790187179
+    },
+    {
+      "map": "synthetic_008",
+      "variant": "python",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.12940201000003526,
+      "cpu_time_s": 0.12938485499999786,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 29442,
+        "popped": 38741,
+        "stale_pops": 9298,
+        "pushes": 78487,
+        "peak_open": 39747,
+        "path_cost": 666.9036790187214
+      },
+      "path_cost": 666.9036790187179
+    },
+    {
+      "map": "synthetic_008",
+      "variant": "native",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.01030648799996925,
+      "cpu_time_s": 0.010303835000001982,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 29442,
+        "popped": 38741,
+        "stale_pops": 9298,
+        "pushes": 78487,
+        "peak_open": 39747,
+        "path_cost": 666.9036790187214
+      },
+      "path_cost": 666.9036790187179
+    },
+    {
+      "map": "synthetic_008",
+      "variant": "baseline",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 2.1986736690000726,
+      "cpu_time_s": 2.1986065629999985,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 666.9036790187179
+    },
+    {
+      "map": "synthetic_008",
+      "variant": "native",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.00981131200001073,
+      "cpu_time_s": 0.009809328999999423,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 29442,
+        "popped": 38741,
+        "stale_pops": 9298,
+        "pushes": 78487,
+        "peak_open": 39747,
+        "path_cost": 666.9036790187214
+      },
+      "path_cost": 666.9036790187179
+    },
+    {
+      "map": "synthetic_008",
+      "variant": "baseline",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 2.182868181999993,
+      "cpu_time_s": 2.182804021999999,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 666.9036790187179
+    },
+    {
+      "map": "synthetic_008",
+      "variant": "python",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.12135234900006253,
+      "cpu_time_s": 0.12134912300000167,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 29442,
+        "popped": 38741,
+        "stale_pops": 9298,
+        "pushes": 78487,
+        "peak_open": 39747,
+        "path_cost": 666.9036790187214
+      },
+      "path_cost": 666.9036790187179
+    },
+    {
+      "map": "synthetic_009",
+      "variant": "baseline",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 1.4810980299999983,
+      "cpu_time_s": 1.481031950000002,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 651.6732316404183
+    },
+    {
+      "map": "synthetic_009",
+      "variant": "python",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.1321846490000098,
+      "cpu_time_s": 0.13217570599999817,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 30895,
+        "popped": 46114,
+        "stale_pops": 15218,
+        "pushes": 81870,
+        "peak_open": 35757,
+        "path_cost": 651.6732316404215
+      },
+      "path_cost": 651.6732316404183
+    },
+    {
+      "map": "synthetic_009",
+      "variant": "native",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.010840601999916544,
+      "cpu_time_s": 0.01083854999999545,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 30895,
+        "popped": 46114,
+        "stale_pops": 15218,
+        "pushes": 81870,
+        "peak_open": 35757,
+        "path_cost": 651.6732316404215
+      },
+      "path_cost": 651.6732316404183
+    },
+    {
+      "map": "synthetic_009",
+      "variant": "python",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.12849355899993498,
+      "cpu_time_s": 0.12847978900000356,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 30895,
+        "popped": 46114,
+        "stale_pops": 15218,
+        "pushes": 81870,
+        "peak_open": 35757,
+        "path_cost": 651.6732316404215
+      },
+      "path_cost": 651.6732316404183
+    },
+    {
+      "map": "synthetic_009",
+      "variant": "native",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.010858700000085264,
+      "cpu_time_s": 0.010856236000002184,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 30895,
+        "popped": 46114,
+        "stale_pops": 15218,
+        "pushes": 81870,
+        "peak_open": 35757,
+        "path_cost": 651.6732316404215
+      },
+      "path_cost": 651.6732316404183
+    },
+    {
+      "map": "synthetic_009",
+      "variant": "baseline",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 1.5292940470000076,
+      "cpu_time_s": 1.5292634250000035,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 651.6732316404183
+    },
+    {
+      "map": "synthetic_009",
+      "variant": "native",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.012351670000043669,
+      "cpu_time_s": 0.012348877000000869,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 30895,
+        "popped": 46114,
+        "stale_pops": 15218,
+        "pushes": 81870,
+        "peak_open": 35757,
+        "path_cost": 651.6732316404215
+      },
+      "path_cost": 651.6732316404183
+    },
+    {
+      "map": "synthetic_009",
+      "variant": "baseline",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 1.521313618000022,
+      "cpu_time_s": 1.5212458089999998,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 651.6732316404183
+    },
+    {
+      "map": "synthetic_009",
+      "variant": "python",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.1383613850000529,
+      "cpu_time_s": 0.13835815099999849,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 30895,
+        "popped": 46114,
+        "stale_pops": 15218,
+        "pushes": 81870,
+        "peak_open": 35757,
+        "path_cost": 651.6732316404215
+      },
+      "path_cost": 651.6732316404183
+    },
+    {
+      "map": "synthetic_010",
+      "variant": "baseline",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 1.9557648149999523,
+      "cpu_time_s": 1.9557083609999992,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_010",
+      "variant": "python",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.17980747499996141,
+      "cpu_time_s": 0.17980428399999937,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 42552,
+        "popped": 90449,
+        "stale_pops": 47896,
+        "pushes": 99230,
+        "peak_open": 13055,
+        "path_cost": 662.2173875177054
+      },
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_010",
+      "variant": "native",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.015002741999978753,
+      "cpu_time_s": 0.015000400999994667,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 42552,
+        "popped": 90449,
+        "stale_pops": 47896,
+        "pushes": 99230,
+        "peak_open": 13055,
+        "path_cost": 662.2173875177054
+      },
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_010",
+      "variant": "python",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.20076125699995373,
+      "cpu_time_s": 0.20075822899999451,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 42552,
+        "popped": 90449,
+        "stale_pops": 47896,
+        "pushes": 99230,
+        "peak_open": 13055,
+        "path_cost": 662.2173875177054
+      },
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_010",
+      "variant": "native",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.01540636300001097,
+      "cpu_time_s": 0.015403920000004234,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 42552,
+        "popped": 90449,
+        "stale_pops": 47896,
+        "pushes": 99230,
+        "peak_open": 13055,
+        "path_cost": 662.2173875177054
+      },
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_010",
+      "variant": "baseline",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 2.0290249410001024,
+      "cpu_time_s": 2.0289676589999956,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_010",
+      "variant": "native",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.01640433700003996,
+      "cpu_time_s": 0.016401665000003618,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 42552,
+        "popped": 90449,
+        "stale_pops": 47896,
+        "pushes": 99230,
+        "peak_open": 13055,
+        "path_cost": 662.2173875177054
+      },
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_010",
+      "variant": "baseline",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 2.016164023999977,
+      "cpu_time_s": 2.0160709409999953,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_010",
+      "variant": "python",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.1821983969999792,
+      "cpu_time_s": 0.18218556600000113,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 42552,
+        "popped": 90449,
+        "stale_pops": 47896,
+        "pushes": 99230,
+        "peak_open": 13055,
+        "path_cost": 662.2173875177054
+      },
+      "path_cost": 662.2173875177026
+    },
+    {
+      "map": "synthetic_011",
+      "variant": "baseline",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.6357270839999956,
+      "cpu_time_s": 0.6356397409999985,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 630.5849198858497
+    },
+    {
+      "map": "synthetic_011",
+      "variant": "python",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.05848000800006048,
+      "cpu_time_s": 0.05847689299999814,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 12173,
+        "popped": 19349,
+        "stale_pops": 7175,
+        "pushes": 35025,
+        "peak_open": 15677,
+        "path_cost": 630.5849198858531
+      },
+      "path_cost": 630.5849198858497
+    },
+    {
+      "map": "synthetic_011",
+      "variant": "native",
+      "repeat": 0,
+      "solved": true,
+      "time_s": 0.006478253999944172,
+      "cpu_time_s": 0.006476432999996007,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 12173,
+        "popped": 19349,
+        "stale_pops": 7175,
+        "pushes": 35025,
+        "peak_open": 15677,
+        "path_cost": 630.5849198858531
+      },
+      "path_cost": 630.5849198858497
+    },
+    {
+      "map": "synthetic_011",
+      "variant": "python",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.05648749500005579,
+      "cpu_time_s": 0.05648450000000338,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 12173,
+        "popped": 19349,
+        "stale_pops": 7175,
+        "pushes": 35025,
+        "peak_open": 15677,
+        "path_cost": 630.5849198858531
+      },
+      "path_cost": 630.5849198858497
+    },
+    {
+      "map": "synthetic_011",
+      "variant": "native",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.006042956999976923,
+      "cpu_time_s": 0.00604049400000406,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 12173,
+        "popped": 19349,
+        "stale_pops": 7175,
+        "pushes": 35025,
+        "peak_open": 15677,
+        "path_cost": 630.5849198858531
+      },
+      "path_cost": 630.5849198858497
+    },
+    {
+      "map": "synthetic_011",
+      "variant": "baseline",
+      "repeat": 1,
+      "solved": true,
+      "time_s": 0.6084244950000084,
+      "cpu_time_s": 0.6084072239999969,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 630.5849198858497
+    },
+    {
+      "map": "synthetic_011",
+      "variant": "native",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.007466934000035508,
+      "cpu_time_s": 0.007465002000003551,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "cpp-astar",
+      "stats": {
+        "expanded": 12173,
+        "popped": 19349,
+        "stale_pops": 7175,
+        "pushes": 35025,
+        "peak_open": 15677,
+        "path_cost": 630.5849198858531
+      },
+      "path_cost": 630.5849198858497
+    },
+    {
+      "map": "synthetic_011",
+      "variant": "baseline",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.6109782080000059,
+      "cpu_time_s": 0.6109535970000053,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": null,
+      "stats": {},
+      "path_cost": 630.5849198858497
+    },
+    {
+      "map": "synthetic_011",
+      "variant": "python",
+      "repeat": 2,
+      "solved": true,
+      "time_s": 0.062162975999967784,
+      "cpu_time_s": 0.06215998100000064,
+      "shape": [
+        512,
+        512
+      ],
+      "backend": "python-astar",
+      "stats": {
+        "expanded": 12173,
+        "popped": 19349,
+        "stale_pops": 7175,
+        "pushes": 35025,
+        "peak_open": 15677,
+        "path_cost": 630.5849198858531
+      },
+      "path_cost": 630.5849198858497
+    }
+  ]
+}

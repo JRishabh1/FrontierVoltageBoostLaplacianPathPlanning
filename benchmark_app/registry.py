@@ -116,6 +116,8 @@ REGISTRY: list[AlgorithmSpec] = [
         params=[
             ParamSpec('timeout', 'Search timeout (s)', 'float', 60.0, min=1.0,
                       help='A* gives up after this many seconds.'),
+            ParamSpec('use_native', 'Compiled CPU search when installed', 'bool', True,
+                      help='Build with python benchmarks/build_astar.py. Falls back to optimized Python; actual backend is recorded.'),
         ],
     ),
     AlgorithmSpec(

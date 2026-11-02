@@ -63,6 +63,8 @@ class PotentialFieldAlgorithmND(BaseAlgorithm):
     # ------------------------------------------------------------------
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._path = None
         grid = self.map.grid
         start = self.map.start   # (x, y, ...)
         end = self.map.end
@@ -142,9 +144,9 @@ class PotentialFieldAlgorithmND(BaseAlgorithm):
         best_goal_dist = math.sqrt(sum((e - p) ** 2 for e, p in zip(end_g, pos)))
         steps_since_best = 0
 
-        for _ in range(self.max_iters):
+        for iteration in range(self.max_iters):
             if any(not (1 <= pos[d] < potential.shape[d] - 1) for d in range(ndim)):
-                return None
+                return self.fail('out_of_bounds', 'descent left the interior of the field', stage='extraction', steps=iteration, position=list(reversed(pos)))
 
             if self.bilinear_interpolation:
                 grad = []
@@ -162,16 +164,18 @@ class PotentialFieldAlgorithmND(BaseAlgorithm):
                     grad.append(potential[tuple(fwd)] - potential[tuple(bwd)])
 
             mag = math.sqrt(sum(g * g for g in grad))
+            if not math.isfinite(mag):
+                return self.fail('nonfinite_gradient', 'descent gradient is not finite', stage='extraction', steps=iteration, position=list(reversed(pos)))
             if mag == 0:
-                return None   # exact local minimum
+                return self.fail('zero_gradient', 'descent gradient is zero before reaching the goal', stage='extraction', steps=iteration, position=list(reversed(pos)))
 
             for d in range(ndim):
                 pos[d] -= (self.step_size / mag) * grad[d]
 
             if any(not (0 <= pos[d] < potential.shape[d]) for d in range(ndim)):
-                return None
+                return self.fail('out_of_bounds', 'descent left the grid', stage='extraction', steps=iteration + 1, position=list(reversed(pos)))
             if grid[tuple(int(p) for p in pos)] == 1:
-                return None   # descended into an obstacle cell
+                return self.fail('collision', 'descent entered an obstacle cell', stage='extraction', steps=iteration + 1, position=list(reversed(pos)))
 
             path.append(tuple(reversed(pos)))
 
@@ -186,9 +190,9 @@ class PotentialFieldAlgorithmND(BaseAlgorithm):
             else:
                 steps_since_best += 1
                 if steps_since_best >= self.stall_window:
-                    return None   # oscillating in a local minimum
+                    return self.fail('stalled', 'goal distance did not improve within the stall window', stage='extraction', steps=iteration + 1, position=list(reversed(pos)))
 
-        return None
+        return self.fail('step_limit', 'descent exhausted max_iters', stage='extraction', steps=self.max_iters, position=list(reversed(pos)))
 
     @staticmethod
     def _nlinear_interp(field, pos):

@@ -22,6 +22,8 @@ class FrontierVoltageBoostLaplace3D(Algorithm3D):
     # ------------------------------------------------------------------
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._path = None
         grid = self.map.grid        # shape (D, H, W) = (Z, Y, X)
         start = self.map.start      # (x, y, z)
         end = self.map.end          # (x, y, z)
@@ -166,11 +168,11 @@ class FrontierVoltageBoostLaplace3D(Algorithm3D):
         # smoothness metrics or reporting.
         path = [(posx, posy, posz)]
 
-        for _ in range(10000):
+        for iteration in range(10000):
             if not (0 < posz < phi.shape[0] - 1 and
                     0 < posy < phi.shape[1] - 1 and
                     0 < posx < phi.shape[2] - 1):
-                return None
+                return self.fail('out_of_bounds', 'descent left the interior of the field', stage='extraction', steps=iteration, position=[posx, posy, posz])
 
             if self.bilinear_interpolation:
                 gradz, grady, gradx = self._get_grad_trilinear(phi, posz, posy, posx)
@@ -184,8 +186,10 @@ class FrontierVoltageBoostLaplace3D(Algorithm3D):
                 gradx = self._fv(phi[z, y, x+1], point_v) - self._fv(phi[z, y, x-1], point_v)
 
             mag = math.sqrt(gradz**2 + grady**2 + gradx**2)
+            if not math.isfinite(mag):
+                return self.fail('nonfinite_gradient', 'descent gradient is not finite', stage='extraction', steps=iteration, position=[posx, posy, posz])
             if mag == 0:
-                return None
+                return self.fail('zero_gradient', 'descent gradient is zero before reaching the goal', stage='extraction', steps=iteration, position=[posx, posy, posz])
 
             step = self.step_size / mag
             posz -= step * gradz
@@ -200,7 +204,7 @@ class FrontierVoltageBoostLaplace3D(Algorithm3D):
                 path.append((float(ex), float(ey), float(ez)))
                 return path
 
-        return None
+        return self.fail('step_limit', 'goal not reached within 10000 descent steps', stage='extraction', steps=10000, position=[posx, posy, posz])
 
     @staticmethod
     def _fv(nv, pv):

@@ -70,6 +70,8 @@ class KoditschekRimonNF(BaseAlgorithm):
         self.k_used = None
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._path = None
         grid = self.map.grid
         self._phi = self._krf(grid, self.map.end)
         diag = {}
@@ -79,6 +81,8 @@ class KoditschekRimonNF(BaseAlgorithm):
             stall_window=self.stall_window, interpolate=self.bilinear_interpolation,
             diag=diag)
         self.failure_reason = diag.get('reason')
+        self.failure_code = diag.get('code')
+        self.failure_details = diag.get('details', {})
         if visualize:
             self._visualize()
         return self._path

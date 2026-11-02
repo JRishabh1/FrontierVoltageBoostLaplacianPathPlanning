@@ -968,13 +968,21 @@ function renderRunDetail() {
     const mTime = meanBy(solved, r => r.time_s);
     const mPen = meanBy(solved, r => r.metrics && r.metrics.steering_penalty);
     const mLen = meanBy(solved, r => r.path_length_euclidean);
+    const failures = {};
+    for (const r of recs.filter(r => !r.solved)) {
+      const code = r.failure_code || 'unclassified (older result)';
+      failures[code] = (failures[code] || 0) + 1;
+    }
+    const backends = [...new Set(recs.map(r => r.backend).filter(Boolean))];
     return `<div class="tile">
       <div class="t-head" title="${esc(paramsSummary(a.params))}"><span class="chip" style="${chipStyle(a.id)}"></span>${esc(instLabel(algos, a))}</div>
       <div class="t-stats">
         <span>solved <b>${solved.length}/${recs.length || '—'}</b></span>
-        <span>mean time <b>${fmt(mTime, 3)}${mTime != null ? ' s' : ''}</b></span>
+        <span title="Average solve time over successful maps only; excludes process startup and warm-up.">mean time (solved) <b>${fmt(mTime, 3)}${mTime != null ? ' s' : ''}</b></span>
         <span>mean steering penalty <b>${fmt(mPen, 2)}</b></span>
         <span>mean path length <b>${fmt(mLen, 1)}</b></span>
+        ${backends.length ? `<span>backend: ${esc(backends.join(', '))}</span>` : ''}
+        ${Object.entries(failures).map(([code, count]) => `<span>${esc(code)}: <b>${count}</b></span>`).join('')}
       </div>
     </div>`;
   }).join('');
@@ -991,12 +999,12 @@ function renderRunDetail() {
       <td>${esc(r.map_stem || r.map_name)}</td>
       <td><span class="algo-cell" title="${esc(paramsSummary(r.params))}"><span class="chip" style="${chipStyle(r.algorithm_id)}"></span>${esc(instLabel(algos, entry))}</span></td>
       <td>${r.solved ? '<span class="solved-yes">✓ solved</span>'
-                     : `<span class="solved-no" title="${esc(r.error || '')}">✕ failed</span>`}</td>
+                     : `<span class="solved-no" title="${esc(r.error || '')}">✕ ${esc(r.failure_code || 'failed')}</span>`}</td>
       <td class="num">${fmt(r.time_s, 3)}</td>
       <td class="num">${fmt(r.path_steps, 0)}</td>
       <td class="num">${fmt(r.path_length_euclidean, 1)}</td>
       <td class="num">${fmt(pen, 2)}</td>
-      <td>${r.metrics ? `<button class="btn btn-sm" data-tgl="${i}">metrics</button>` : (r.error ? `<span style="font-size:11.5px;color:var(--status-critical)">${esc(String(r.error).slice(0, 60))}</span>` : '')}</td>
+      <td>${r.metrics ? `<button class="btn btn-sm" data-tgl="${i}">metrics</button>` : (r.error ? `<details><summary>${esc(String(r.error).split('\n')[0])}</summary><pre>${esc(r.error)}\n${esc(JSON.stringify(r.failure_details || {}, null, 2))}</pre></details>` : '')}</td>
     </tr>
     ${r.metrics ? `<tr class="hidden" id="mrow-${i}"><td colspan="8"><div class="metrics-sub">${metricsHTML}</div></td></tr>` : ''}`;
   }).join('');

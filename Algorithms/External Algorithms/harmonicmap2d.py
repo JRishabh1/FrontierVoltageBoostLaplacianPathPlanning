@@ -120,6 +120,8 @@ class HarmonicMapNavigation2D(Algorithm2D):
     # ------------------------------------------------------------------
 
     def solve(self, visualize=False):
+        self.reset_diagnostics()
+        self._path = None
         grid = self.map.grid
         start, end = self.map.start, self.map.end
         domain = _common.free_component(grid, start)
@@ -187,14 +189,14 @@ class HarmonicMapNavigation2D(Algorithm2D):
             J = np.asarray(hm.jacob(*p), dtype=float)
             terms = self._terms(q, q_d, P, k_d, k, k_bar)
             if terms is None:
-                return self._fail(f'hit a puncture/goal singularity of the disk at {at(p)}')
+                return self._fail('singularity', f'hit a puncture/goal singularity of the disk at {at(p)}')
             try:
                 u = -self.K_u * terms['s'] * np.linalg.solve(J, terms['grad_psi'])
             except np.linalg.LinAlgError:
-                return self._fail(f'singular harmonic-map Jacobian at {at(p)}')
+                return self._fail('singular_jacobian', f'singular harmonic-map Jacobian at {at(p)}')
             speed = float(np.hypot(*u))
             if not math.isfinite(speed):
-                return self._fail(f'non-finite control at {at(p)}')
+                return self._fail('nonfinite_control', f'non-finite control at {at(p)}')
             kd_rate, A, B = self._gain_rates(q, q_d, P, k_d, k, k_bar, terms)
 
             # Explicit Euler (paper: 10 ms), with a shorter step only when the
@@ -205,7 +207,7 @@ class HarmonicMapNavigation2D(Algorithm2D):
             k = k + h * (A - B * k)
 
             if not _common.in_free_cell(grid, (p[1], p[0])):
-                return self._fail(f'left free space at {at(p)}')
+                return self._fail('collision_or_bounds', f'left free space at {at(p)}')
             path.append((float(p[0]), float(p[1])))
 
             if abs(end[0] - p[0]) <= 1 and abs(end[1] - p[1]) <= 1:
@@ -218,12 +220,11 @@ class HarmonicMapNavigation2D(Algorithm2D):
             else:
                 since_anchor += 1
                 if since_anchor >= self.stall_window:
-                    return self._fail(f'stuck near {at(p)} for {self.stall_window} steps')
-        return self._fail(f'goal not reached within {self.max_iters} steps')
+                    return self._fail('stalled', f'stuck near {at(p)} for {self.stall_window} steps')
+        return self._fail('step_limit', f'goal not reached within {self.max_iters} steps')
 
-    def _fail(self, reason):
-        self.failure_reason = reason
-        return None
+    def _fail(self, code, reason):
+        return self.fail(code, reason, stage='navigation')
 
     def _terms(self, q, q_d, P, k_d, k, k_bar):
         """Potential, gain function s and adaptive-law ingredients at q."""
